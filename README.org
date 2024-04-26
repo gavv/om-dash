@@ -1,0 +1,772 @@
+* om-dash
+
+#+BEGIN: om-dash--readme-toc
+- [[#what is this?][What is this?]]
+- [[#example workflow][Example workflow]]
+- [[#example blocks][Example blocks]]
+- [[#contributions][Contributions]]
+- [[#installation][Installation]]
+- [[#updater functions][Updater functions]]
+- [[#dynamic blocks][Dynamic blocks]]
+- [[#templates][Templates]]
+- [[#minor mode][Minor mode]]
+- [[#variables][Variables]]
+- [[#faces][Faces]]
+- [[#authors][Authors]]
+- [[#license][License]]
+#+END:
+
+** What is this?
+
+=om-dash= implements [[https://orgmode.org/manual/Dynamic-Blocks.html][dynamic blocks]] for org-mode that you can use to *compose a custom project dashboard*.
+
+It was always a struggle to me to keep track of the "big picture" when I'm hopping between projects.
+
+I wanted a tool that can give me a brief summary of all ongoing projects: what's done, what's next, and what requires attention. And then I realized that it can be easily implemented using org-mode, so here we go.
+
+Currently om-dash implementats three configurable dynamic blocks:
+
+- =om-dash-github= - generates a table with issues or pull requests from github repository
+- =om-dash-orgfile= - generates tables with top-level entries from an org file
+- =om-dash-command= - generates a table from the output of a shell command
+
+It also provides a minor mode (=om-dash-mode=) that applies highlighting to the generated tables.
+
+In addition, there is support for templates, which allows to create reusable parameterized configurations of the above blocks (e.g. for specific github query or shell command).
+
+** Example workflow
+
+Here I describe my own workflow. Yours can be different of course, but I think this should give the basic idea about this package.
+
+For every project, I have three main sources of "things" to keep track of:
+
+- github repository with issues and pull requests
+- personal org file with tasks grouped into some kind of millstones (usually releases)
+- a few IMAP directories with email related to this project (mailing lists, notifications, discussions)
+
+On top of that, I have a file called "dashboard.org" with a top-level entry for every project, and a few second-level entries with om-dash dynamic blocks:
+
+- a block with all open or recently merged pull requests from github
+- another block with open github issues (for big projects, I display only issues from specific column of github kanban board, or from specific milestone)
+- one block for every ongoing or upcoming milestone from my personal org file for this project, showing top level tasks from each milestone
+- block with project's IMAP directories and unread email counter
+
+Screenshot of a project from "dashboard.org" described above:
+
+#+BEGIN_HTML
+<img src="screenshot/project_example.png" width="650px"/>
+#+END_HTML
+
+** Example blocks
+
+*** Github pull requests
+
+Display all open pull requests and pull requests closed last month.
+
+#+begin_example
+,#+BEGIN: om-dash-github :repo "roc-streaming/roc-toolkit" :type pr :open "*" :closed "-1mo"
+...
+,#+END:
+#+end_example
+
+[[./screenshot/github_pull_requests.png]]
+
+*** Github issues
+
+Display all open issues except those which have "help wanted" label.
+
+#+begin_example
+,#+BEGIN: om-dash-github :repo "gavv/signal-estimator" :type issue :open "-label:\"help wanted\""
+...
+,#+END:
+#+end_example
+
+[[./screenshot/github_issues.png]]
+
+*** Github project column
+
+Display all open issues from "In work" column of github project with id "2".
+
+This examples uses built-in =project-column= template, which transforms =:project= and =:column= arguments into corresponding github queries for =om-dash-github= block.
+
+#+begin_example
+,#+BEGIN: om-dash-github :template project-column :repo "roc-streaming/roc-toolkit" :type issue :project 2 :column "In work"
+...
+,#+END:
+#+end_example
+
+[[./screenshot/github_project_column.png]]
+
+*** Tasks from org file
+
+Display 1-level TODO tasks as tables with their child 2-level TODO tasks as table rows. Hide 1-level DONE tasks.
+
+#+begin_example
+,#+BEGIN: om-dash-orgfile :file "~/cloud/org/roc-toolkit.org" :todo 2 :done 0
+...
+,#+END:
+#+end_example
+
+[[./screenshot/org_tasks.png]]
+
+*** Project email
+
+Display unread email counters for project's IMAP directories fetched by Claws Mail client.
+
+#+begin_example
+,#+BEGIN: om-dash-command :template claws-mail :folder "develop/roc"
+...
+,#+END:
+#+end_example
+
+[[./screenshot/command_claws_mail.png]]
+
+This example uses custom (not built-in) template, which transforms =:folder= argument into appropriate arguments for =om-dash-command= block:
+
+#+begin_src emacs-lisp
+  (defun my-claws-mail-template (params)
+    (let ((folder (plist-get params :folder)))
+      (list :headline (format "emails (%s)" folder)
+            :command (format "claws2json -f %s" folder)
+            :columns '("state" "count" "total" "folder"))))
+
+  (add-to-list 'om-dash-templates
+             '(claws-mail . my-claws-mail-template))
+#+end_src
+
+(Here, =claws2json= is a small script I wrote that reads =folderlist.xml= file produced by Claws Mail and prints a table in JSON format.)
+
+** Contributions
+
+So far I've implemented only things that I needed for my own workflow, plus some reasonable customization. I have quite limited time for this project, so if you would like to extend it for your workflow, pull requests are very welcome!
+
+Also, as I've never created elisp packages before, I probably missed some conventions or best practices. Again, patches are welcome.
+
+** Installation
+
+Required external tools:
+
+- [[https://cli.github.com/][gh]]
+- [[https://jqlang.github.io/jq/][jq]]
+
+To access private repos on github, follow [[https://cli.github.com/manual/gh_auth_login][official instructions]].
+
+Elisp dependencies:
+
+- [[https://github.com/alphapapa/org-ql][org-ql]]
+- [[https://github.com/magnars/s.el][s.el]]
+- [[https://github.com/alphapapa/ts.el][ts.el]]
+- [[https://github.com/mrc/el-csv][el-csv]] (optional)
+
+Package was tested on Emacs 28.2 on Linux.
+
+Instructions for straight.el:
+
+#+begin_src emacs-lisp
+  ;; required dependencies
+  (straight-use-package 'org-ql)
+  (straight-use-package 's)
+  (straight-use-package 'ts)
+
+  ;; optional
+  (straight-use-package
+   (el-csv
+    :type git
+    :host github
+    :repo "mrc/el-csv"
+    :branch "master"
+    :files ("parse-csv.el")))
+
+  ;; om-dash
+  (straight-use-package
+   (om-dash
+    :type git
+    :host github
+    :repo "gavv/om-dash"
+    :branch "main"
+    :files ("om-dash.el")))
+#+end_src
+
+** Updater functions
+
+The following functions can be used to update dynamic blocks (of any kind) in current document. You can bind them to =org-mode-map= or =om-dash-mode-map=.
+
+#+BEGIN: om-dash--readme-symbol :symbol org-update-all-dblocks
+*** org-update-all-dblocks
+Update all dynamic blocks in the buffer.
+This function can be used in a hook.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol org-dblock-update
+*** org-dblock-update
+User command for updating dynamic blocks.
+Update the dynamic block at point.  With prefix ARG, update all dynamic
+blocks in the buffer.
+
+(fn &optional ARG)
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-update-tree
+*** om-dash-update-tree
+Update all dynamic blocks in current tree, starting from top-level entry.
+
+E.g., for the following document:
+
+#+begin_example
+  * 1.                  o
+  ** 1.1    <- cursor   |
+  *** 1.1.1             | [tree]
+  *** 1.1.2             |
+  ** 1.2                o
+  * 2.
+  ** 2.1
+#+end_example
+
+the function updates all blocks inside 1., 1.1, 1.1.1, 1.1.2, 1.2.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-update-subtree
+*** om-dash-update-subtree
+Update all dynamic blocks in current subtree, starting from current entry.
+
+E.g., for the following document:
+
+#+begin_example
+  * 1.
+  ** 1.1    <- cursor   o
+  *** 1.1.1             | [subtree]
+  *** 1.1.2             o
+  ** 1.2
+  * 2.
+  ** 2.1
+#+end_example
+
+the function updates all blocks inside 1.1, 1.1.1, 1.1.2.
+#+END:
+
+** Dynamic blocks
+
+This section lists dynamic blocks implemented by =om-dash=. Each block named =om-dash-xxx= corresponds to a function named =org-dblock-write:om-dash-xxx=.
+
+#+BEGIN: om-dash--readme-symbol :symbol org-dblock-write:om-dash-github
+*** om-dash-github
+Builds org heading with a table of github issues or pull requests.
+
+Basic example:
+
+#+begin_example
+  ,#+BEGIN: om-dash-github :repo "octocat/linguist" :type pr :open "*" :closed "-1w"
+  ...
+  ,#+END:
+#+end_example
+
+More advanced example:
+
+#+begin_example
+  ,#+BEGIN: om-dash-github :repo "octocat/hello-world" :type any :open ("comments:>2" ".title | contains(\"Hello\")") :sort "updatedAt" :limit 100
+  ...
+  ,#+END:
+#+end_example
+
+Parameters:
+
+| parameter      | default                  | description                          |
+|----------------+--------------------------+--------------------------------------|
+| :repo          | required                 | github repo in form “<login>/<repo>“ |
+| :type          | required                 | topic type (=issue=, =pr=, =any=)    |
+| :any           | match none (““)          | query for topics in any state        |
+| :open          | match all (“*“)          | query for topics in open state       |
+| :closed        | match none (““)          | query for topics in closed state     |
+| :sort          | “createdAt“              | sort results by given field          |
+| :fields        | =om-dash-github-fields=  | explicitly specify list of fields    |
+| :limit         | =om-dash-github-limit=   | limit number of results              |
+| :table-columns | =om-dash-github-columns= | list of columns to display           |
+| :headline      | auto                     | text for generated org heading       |
+| :heading-level | auto                     | level for generated org heading      |
+
+A query for =:any=, =:open=, and =:closed= can have one of the two forms:
+ - "github-query"
+ - ("github-query" "jq-selector")
+
+=github-query= is a string using github search syntax:
+https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
+
+Besides standard syntax, a few extended forms are supported:
+
+| form     | description                           |
+|----------+---------------------------------------|
+| “*“      | match all                             |
+| “-123d“  | match if updated during last 123 days |
+| “-123w“  | same, but weeks                       |
+| “-123mo“ | same, but months                      |
+| “-123y“  | same, but years                       |
+
+=jq-selector= is an optional selector to filter results using jq command:
+https://jqlang.github.io/jq/
+
+You can specify different queries for open and closed topics, e.g. to show all
+open issues but only recently closed issues, use:
+
+#+begin_example
+  :open "*" :closed "-1mo"
+#+end_example
+
+Alternatively, you can use a single query regardless of topic state:
+
+#+begin_example
+  :any "-1mo"
+#+end_example
+
+Under the hood, the block uses combination of gh and jq commands like:
+
+#+begin_example
+  gh -R <repo> issue list \
+        --json <fields> --search <github query> --limit <limit> \
+    | jq '[.[] | select(<jq selector>)]'
+#+end_example
+
+(jq part is optional and is used only when the query has the second form when
+both github and jq parts are present).
+
+Exact commands being executed are printed to =*om-dash*= buffer
+if =om-dash-verbose= is set.
+
+By default, github query uses all fields from =om-dash-github-fields=, plus any
+field from =om-dash-github-auto-enabled-fields= if it's present in jq selector.
+
+The latter allows to exclude fields that makes queries slower, when they're
+not used. To change this, you can specify =:fields= parameter explicitly.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol org-dblock-write:om-dash-orgfile
+*** om-dash-orgfile
+Builds org headings with tables based on another org file.
+
+Example usage:
+
+#+begin_example
+  ,#+BEGIN: om-dash-github :repo :file "~/my/file.org" :todo 2 :done 1
+  ...
+  ,#+END:
+#+end_example
+
+Parameters:
+
+| parameter      | default                   | description                      |
+|----------------+---------------------------+----------------------------------|
+| :file          | required                  | path to .org file                |
+| :todo          | 2                         | nesting level for TODO entries   |
+| :done          | 1                         | nesting level for DONE entries   |
+| :table-columns | =om-dash-orgfile-columns= | list of columns to display       |
+| :heading-level | auto                      | level for generated org headings |
+
+This block generates an org heading with a table for every top-level
+(i.e. level-1) org heading in specified =:file=, with nested headings
+represented as table rows.
+
+Parameters =:todo= and =:done= limit how deep the tree is traversed
+for top-level headings in =TODO= and =DONE= states.
+
+For example:
+
+ - if =:done= is 0, then level-1 headings in =DONE= state are not
+#+begin_example
+   shown at all
+#+end_example
+
+ - if =:done= is 1, then level-1 headings in =DONE= state are shown
+#+begin_example
+   "collapsed", i.e. org heading is generated, but without table
+#+end_example
+
+ - if =:done= is 2, then level-1 headings in =DONE= state are shown
+#+begin_example
+   and each has a table with its level-2 children
+#+end_example
+
+ - if =:done= is 3, then level-1 headings in =DONE= state are shown
+#+begin_example
+   and each has a table with its level-2 and level-3 children
+#+end_example
+
+...and so on. Same applies to =:todo= parameter.
+
+Whether a heading is considered as =TODO= or =DONE= is defined by
+variables =om-dash-todo-keywords= and =om-dash-done-keywords=.
+
+By default they are automatically populated from =org-todo-keywords-1=
+and =org-done-keywords=, but you can set them to your own values.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol org-dblock-write:om-dash-command
+*** om-dash-command
+Builds org heading with a table from output of a shell command.
+
+Usage example:
+#+begin_example
+  ,#+BEGIN: om-dash-command :command "curl -s https://api.github.com/users/octocat/repos" :format json :columns ("name" "forks_count")
+  ...
+  ,#+END:
+#+end_example
+
+| parameter      | default  | description                             |
+|----------------+----------+-----------------------------------------|
+| :command       | required | shell command to run                    |
+| :columns       | required | column names (list of strings)          |
+| :format        | =json=   | command output format (=json= or =csv=) |
+| :headline      | auto     | text for generated org heading          |
+| :heading-level | auto     | level for generated org heading         |
+
+If =:format= is =json=, command output should be a JSON array of
+JSON objects, which have a value for every key from =:columns=.
+
+If =:format= is =csv=, command output should be CSV. First column
+of CSV becomes value of first column from =:columns=, and so on.
+
+Note: using CSV format requires installing =parse-csv= package
+from https://github.com/mrc/el-csv
+#+END:
+
+** Templates
+
+This section lists built-in templates provided by =om-dash=. You can define your own templates via =om-dash-templates= variable.
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-github:milestone
+*** om-dash-github:milestone
+Template for =om-dash-github= block to display topics from given milestone.
+
+Can be used as =:template= =milestone= with =om-dash-github= block.
+
+Usage example:
+#+begin_example
+  ,#+BEGIN: om-dash-github :template milestone :repo "user/repo" :type issue :milestone "name"
+  ...
+  ,#+END:
+#+end_example
+
+Parameters:
+
+| parameter      | default  | description                           |
+|----------------+----------+---------------------------------------|
+| :repo          | required | github repo in form “<login>/<repo>“  |
+| :type          | required | topic type (=issue=, =pr=, =any=)     |
+| :state         | =open=   | topic state (=open=, =closed=, =any=) |
+| :milestone     | required | milestone name (string)               |
+| :headline      | auto     | text for generated org heading        |
+| :heading-level | auto     | level for generated org heading       |
+
+Any other parameter is not used by template and passed to =om-dash-github= as-is.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-github:project-column
+*** om-dash-github:project-column
+Template for =om-dash-github= block to display topics from given project's column.
+
+Can be used as =:template= =project-column= with =om-dash-github= block.
+
+Usage example:
+#+begin_example
+  ,#+BEGIN: om-dash-github :template project-column :repo "user/repo" :type issue :project 123 :column "name"
+  ...
+  ,#+END:
+#+end_example
+
+Parameters:
+
+| parameter      | default  | description                                              |
+|----------------+----------+----------------------------------------------------------|
+| :repo          | required | github repo in form “<login>/<repo>“                     |
+| :type          | required | topic type (=issue=, =pr=, =any=)                        |
+| :state         | =open=   | topic state (=open=, =closed=, =any=)                    |
+| :project       | required | project id in form <number> or “<login>/<repo>/<number>“ |
+| :column        | required | project column name (string)                             |
+| :headline      | auto     | text for generated org heading                           |
+| :heading-level | auto     | level for generated org heading                          |
+
+Any other parameter is not used by template and passed to =om-dash-github= as-is.
+#+END:
+
+** Minor mode
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-mode
+*** om-dash-mode
+om-dash minor mode.
+
+This is a minor mode.  If called interactively, toggle the
+'OM-Dash mode' mode.  If the prefix argument is positive, enable
+the mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is =toggle=.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate =om-dash-mode=.
+
+The mode's hook is called both when the mode is enabled and when
+it is disabled.
+
+This minor mode for .org files enables additional highlighting inside
+org tables generated by om-dash dynamic blocks.
+
+Things that are highlighted:
+ - table header and cell (text and background)
+ - org-mode keywords
+ - issue or pull request state, number, author
+ - tags
+
+After editing keywords list, you need to reactivate minor mode for
+changes to take effect.
+
+To active this mode automatically for specific files, you can use
+local variables (add this to the end of file):
+
+#+begin_example
+  # Local Variables:
+  # eval: (om-dash-mode 1)
+  # End:
+#+end_example
+#+END:
+
+** Variables
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-todo-keywords
+*** om-dash-todo-keywords
+List of keywords considered as TODO.
+
+If block has any of the TODO keywords, block's heading becomes TODO.
+The first element from this list is used for block's heading in this case.
+
+If a keyword from this list doesn't have a face in =om-dash-keyword-faces=,
+it uses default TODO keyword face.
+
+When nil, filled automatically from =org-todo-keywords=, =org-done-keywords=,
+and pre-defined github keywords.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-done-keywords
+*** om-dash-done-keywords
+List of keywords considered as DONE.
+
+If block doesn't have any of the TODO keywords, block's heading becomes DONE.
+The first element from this list is used for block's heading in this case.
+
+If a keyword from this list doesn't have a face in =om-dash-keyword-faces=,
+it uses default DONE keyword face.
+
+When nil, filled automatically from =org-todo-keywords=, =org-done-keywords=,
+and pre-defined github keywords.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-keyword-faces
+*** om-dash-keyword-faces
+Assoc list to map keywords to faces.
+
+If some keyword is not mapped to a face explicitly, default face is selected,
+using face for TODO or DONE depending on whether that keyword is in
+=om-dash-todo-keywords= or =om-dash-done-keywords=.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-tag-map
+*** om-dash-tag-map
+Assoc list to remap or unmap tag names.
+
+Defines how tags are displayed in table.
+You can map tag name to a different string or to nil to hide it.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-templates
+*** om-dash-templates
+Assoc list of expandable templates for om-dash dynamic blocks.
+
+Each entry is a cons of two symbols: template name and template function.
+
+When you pass ':template foo' as an argument to a dynamic block, it finds
+a function in this list by key 'foo and uses it to "expand" the template.
+
+This function is invoked with dynamic block parameters plist and should
+return a new plist. The new plist is used to update the original
+parameters by appending new values and overwriting existing values.
+
+For example, if =org-dblock-write:om-dash-github= block has parameters:
+#+begin_example
+  (:template project-column
+   :repo "owner/repo"
+   :type 'pr
+   :project 123
+   :column "In progress")
+#+end_example
+
+Dynamic block will use =project-column= as a key in =om-dash-templates=
+and find =om-dash-github:project-column= function.
+
+The function is invoked with all the parameters above, and returns
+something like:
+#+begin_example
+  (:repo "owner/repo"
+   :type 'pr
+   :open ("project:owner/repo/123"
+          ".projectCards[] | (.column.name == \"In progress\")"))
+#+end_example
+
+Then this parameters are interpreted as usual.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-table-width
+*** om-dash-table-width
+If non-nil, align tables to have given fixed width.
+If nil, tables have minimum width that fits their contents.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-squeeze-empty-columns
+*** om-dash-squeeze-empty-columns
+If non-nil, automatically remove empty columns from tables.
+E.g. if every row has empty tags, :tags column is removed from this table.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-link-style
+*** om-dash-link-style
+How links are generated in om-dash tables.
+
+Allowed values:
+ - :none - no links are inserted
+ - :text - only cell text becomes a link
+ - :cell - whole cell becomes a link
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-orgfile-columns
+*** om-dash-orgfile-columns
+Column list for =om-dash-orgfile= table.
+
+Supported values:
+
+| symbol      | example         |
+|-------------+-----------------|
+| :state      | TODO, DONE, ... |
+| :title      | text            |
+| :title-link | [​[link][text]] |
+| :tags       | :tag1:tag2:...: |
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-github-columns
+*** om-dash-github-columns
+Column list for =om-dash-github= table.
+
+Supported values:
+
+| symbol      | example           |
+|-------------+-------------------|
+| :state      | OPEN, CLOSED, ... |
+| :number     | #123              |
+| :author     | @octocat          |
+| :title      | text              |
+| :title-link | [​[link][text]]   |
+| :tags       | :tag1:tag2:...:   |
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-github-limit
+*** om-dash-github-limit
+Default limit for github queries.
+
+E.g. if you query "all open issues" or "closed issues since january",
+only last =om-dash-github-limit= results are returned.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-github-fields
+*** om-dash-github-fields
+List of json fields enabled by default in github queries.
+
+This defines which fields are present in github responses and hence can
+be used in jq selectors.
+
+We don't enable all fields by default because some of them noticeably
+slow down response times.
+
+There is also =om-dash-github-auto-enabled-fields=, which defines fields
+that are enabled automatically for a query if jq selector contains them.
+
+In addition, =org-dblock-write:om-dash-github= accepts =:fields=
+parameter, which can be used to specify addition fields per-block.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-github-auto-enabled-fields
+*** om-dash-github-auto-enabled-fields
+List of json fields automatically enabled on demand in github queries.
+
+See =om-dash-github-fields= for more details.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-verbose
+*** om-dash-verbose
+Enable verbose logging.
+If non-nill, all commands and queries are logged to =*om-dash*= buffer.
+#+END:
+
+** Faces
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-header-cell
+*** om-dash-header-cell
+Face used for entire cell in om-dash table header.
+You can use it so specify header background.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-header-text
+*** om-dash-header-text
+Face used for text in om-dash table header.
+You can use it so specify header font.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-cell
+*** om-dash-cell
+Face used for entire non-header cell in om-dash table.
+You can use it so specify cell background.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-text
+*** om-dash-text
+Face used for text in om-dash table non-header cell.
+You can use it so specify cell font.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-number
+*** om-dash-number
+Face used for issue or pull request numbers in om-dash tables.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-author
+*** om-dash-author
+Face used for issue or pull request authors in om-dash tables.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-todo-keyword
+*** om-dash-todo-keyword
+Face used for =TODO= keyword in om-dash tables.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-done-keyword
+*** om-dash-done-keyword
+Face used for =DONE= keyword in om-dash tables.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-open-keyword
+*** om-dash-open-keyword
+Face used for =OPEN= keyword in om-dash tables.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-merged-keyword
+*** om-dash-merged-keyword
+Face used for =MERGED= keyword in om-dash tables.
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-closed-keyword
+*** om-dash-closed-keyword
+Face used for =CLOSED= keyword in om-dash tables.
+#+END:
+
+** Authors
+
+See [[https://github.com/gavv/om-dash/graphs/contributors][here]].
+
+** License
+
+[[LICENSE][GPLv3+]]
