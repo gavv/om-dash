@@ -1396,12 +1396,18 @@ and 'org-done-keywords', but you can set them to your own values."
             ;; wrap indented code blocks
             (save-excursion
               (goto-char (point-min))
-              (while (re-search-forward "^  " nil t)
+              (while (re-search-forward "^  \\|^ +-" nil t)
                 (beginning-of-line)
-                (insert "#+begin_example\n")
-                (while (looking-at "^  ")
-                  (forward-line))
-                (insert "#+end_example\n")))
+                (if (looking-at "^ +-")
+                    ;; if this is a list item, skip it
+                    (while (looking-at "^  \\|^ +-")
+                      (forward-line))
+                  (progn
+                    ;; otherwise, assume it's a code block
+                    (insert "#+begin_example\n")
+                    (while (looking-at "^  ")
+                      (forward-line))
+                    (insert "#+end_example\n")))))
             ;; re-align tables
             (save-excursion
               (goto-char (point-min))

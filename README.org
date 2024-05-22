@@ -370,24 +370,16 @@ for top-level headings in =TODO= and =DONE= states.
 For example:
 
  - if =:done= is 0, then level-1 headings in =DONE= state are not
-#+begin_example
    shown at all
-#+end_example
 
  - if =:done= is 1, then level-1 headings in =DONE= state are shown
-#+begin_example
    "collapsed", i.e. org heading is generated, but without table
-#+end_example
 
  - if =:done= is 2, then level-1 headings in =DONE= state are shown
-#+begin_example
    and each has a table with its level-2 children
-#+end_example
 
  - if =:done= is 3, then level-1 headings in =DONE= state are shown
-#+begin_example
    and each has a table with its level-2 and level-3 children
-#+end_example
 
 ...and so on. Same applies to =:todo= parameter.
 
