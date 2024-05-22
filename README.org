@@ -1,15 +1,15 @@
 * om-dash
 
 #+BEGIN: om-dash--readme-toc
-- [[#what is this?][What is this?]]
-- [[#example workflow][Example workflow]]
-- [[#example blocks][Example blocks]]
+- [[#what-is-this?][What is this?]]
+- [[#example-workflow][Example workflow]]
+- [[#example-blocks][Example blocks]]
 - [[#contributions][Contributions]]
 - [[#installation][Installation]]
-- [[#updater functions][Updater functions]]
-- [[#dynamic blocks][Dynamic blocks]]
+- [[#updater-functions][Updater functions]]
+- [[#dynamic-blocks][Dynamic blocks]]
 - [[#templates][Templates]]
-- [[#minor mode][Minor mode]]
+- [[#minor-mode][Minor mode]]
 - [[#variables][Variables]]
 - [[#faces][Faces]]
 - [[#authors][Authors]]

@@ -1350,7 +1350,9 @@ and 'org-done-keywords', but you can set them to your own values."
             (dolist (entry entries)
               (let* ((level (org-element-property :level entry))
                      (title (car (org-element-property :title entry)))
-                     (link (s-concat "#" (s-downcase title)))
+                     (link (s-concat
+                            "#" (s-downcase
+                                 (s-replace " " "-" title))))
                      (stars (s-repeat (- level 2) " ")))
                 (insert (format "%s- [[%s][%s]]\n" stars link title))))
             (buffer-string))))
