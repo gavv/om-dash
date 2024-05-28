@@ -5,6 +5,7 @@
 - [[#example-workflow][Example workflow]]
 - [[#example-blocks][Example blocks]]
 - [[#contributions][Contributions]]
+- [[#releases][Releases]]
 - [[#installation][Installation]]
 - [[#updater-functions][Updater functions]]
 - [[#dynamic-blocks][Dynamic blocks]]
@@ -141,6 +142,10 @@ This example uses custom (not built-in) template, which transforms =:folder= arg
 So far I've implemented only things that I needed for my own workflow, plus some reasonable customization. I have quite limited time for this project, so if you would like to extend it for your workflow, pull requests are very welcome!
 
 Also, as I've never created elisp packages before, I probably missed some conventions or best practices. Again, patches are welcome.
+
+** Releases
+
+Changelog file can be found here: [[./CHANGES.md][changelog]].
 
 ** Installation
 
@@ -757,7 +762,7 @@ Face used for =CLOSED= keyword in om-dash tables.
 
 ** Authors
 
-See [[https://github.com/gavv/om-dash/graphs/contributors][here]].
+See [[./AUTHORS.md][here]].
 
 ** License
 
