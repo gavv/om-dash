@@ -108,8 +108,8 @@ You can map tag name to a different string or to nil to hide it.")
 
 Each entry is a cons of two symbols: template name and template function.
 
-When you pass ':template foo' as an argument to a dynamic block, it finds
-a function in this list by key 'foo and uses it to \"expand\" the template.
+When you pass \":template foo\" as an argument to a dynamic block, it finds
+a function in this list by key 'foo' and uses it to \"expand\" the template.
 
 This function is invoked with dynamic block parameters plist and should
 return a new plist. The new plist is used to update the original
@@ -254,7 +254,7 @@ There is also 'om-dash-github-auto-enabled-fields', which defines fields
 that are enabled automatically for a query if jq selector contains them.
 
 In addition, 'org-dblock-write:om-dash-github' accepts ':fields'
-parameter, which can be used to specify addition fields per-block.")
+parameter, which can be used to overwrite fields list per-block.")
 
 (defvar om-dash-github-auto-enabled-fields
   '(
@@ -1235,7 +1235,7 @@ Any other parameter is not used by template and passed to 'om-dash-github' as-is
 
 Example usage:
 
-  #+BEGIN: om-dash-github :repo :file \"~/my/file.org\" :todo 2 :done 1
+  #+BEGIN: om-dash-orgfile :repo :file \"~/my/file.org\" :todo 2 :done 1
   ...
   #+END:
 

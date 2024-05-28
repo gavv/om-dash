@@ -42,7 +42,7 @@ Here I describe my own workflow. Yours can be different of course, but I think t
 For every project, I have three main sources of "things" to keep track of:
 
 - github repository with issues and pull requests
-- personal org file with tasks grouped into some kind of millstones (usually releases)
+- personal org file with tasks grouped into some kind of milestones (usually releases)
 - a few IMAP directories with email related to this project (mailing lists, notifications, discussions)
 
 On top of that, I have a file called "dashboard.org" with a top-level entry for every project, and a few second-level entries with om-dash dynamic blocks:
@@ -350,7 +350,7 @@ Builds org headings with tables based on another org file.
 Example usage:
 
 #+begin_example
-  ,#+BEGIN: om-dash-github :repo :file "~/my/file.org" :todo 2 :done 1
+  ,#+BEGIN: om-dash-orgfile :repo :file "~/my/file.org" :todo 2 :done 1
   ...
   ,#+END:
 #+end_example
@@ -578,8 +578,8 @@ Assoc list of expandable templates for om-dash dynamic blocks.
 
 Each entry is a cons of two symbols: template name and template function.
 
-When you pass ':template foo' as an argument to a dynamic block, it finds
-a function in this list by key 'foo and uses it to "expand" the template.
+When you pass ":template foo" as an argument to a dynamic block, it finds
+a function in this list by key =foo= and uses it to "expand" the template.
 
 This function is invoked with dynamic block parameters plist and should
 return a new plist. The new plist is used to update the original
@@ -683,7 +683,7 @@ There is also =om-dash-github-auto-enabled-fields=, which defines fields
 that are enabled automatically for a query if jq selector contains them.
 
 In addition, =org-dblock-write:om-dash-github= accepts =:fields=
-parameter, which can be used to specify addition fields per-block.
+parameter, which can be used to overwrite fields list per-block.
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-github-auto-enabled-fields
