@@ -134,21 +134,33 @@ something like:
 
 Then this parameters are interpreted as usual.")
 
-(defvar om-dash-table-width nil
+(defvar om-dash-table-fixed-width nil
   "If non-nil, align tables to have given fixed width.
 If nil, tables have minimum width that fits their contents.")
 
-(defvar om-dash-squeeze-empty-columns t
+(define-obsolete-variable-alias
+  'om-dash-table-width
+  'om-dash-table-fixed-width "0.2")
+
+(defvar om-dash-table-squeeze-empty t
   "If non-nil, automatically remove empty columns from tables.
 E.g. if every row has empty tags, :tags column is removed from this table.")
 
-(defvar om-dash-link-style :cell
+(define-obsolete-variable-alias
+  'om-dash-squeeze-empty-columns
+  'om-dash-table-squeeze-empty "0.2")
+
+(defvar om-dash-table-link-style :cell
   "How links are generated in om-dash tables.
 
 Allowed values:
  - :none - no links are inserted
  - :text - only cell text becomes a link
  - :cell - whole cell becomes a link")
+
+(define-obsolete-variable-alias
+  'om-dash-link-style
+  'om-dash-table-link-style "0.2")
 
 (defvar om-dash-orgfile-columns
   '(:state
@@ -467,14 +479,14 @@ You can use it so specify cell font."
          (if (< (length text) width)
              (s-repeat (- width (length text)) " ")
            "")))
-    (cond ((or (not link) (eq :none (or om-dash-link-style :none)))
+    (cond ((or (not link) (eq :none (or om-dash-table-link-style :none)))
            (format "%s%s" text padding))
-          ((eq :text om-dash-link-style)
+          ((eq :text om-dash-table-link-style)
            (format "[[%s][%s]]%s" link text padding))
-          ((eq :cell om-dash-link-style)
+          ((eq :cell om-dash-table-link-style)
            (format "[[%s][%s%s]]" link text padding))
           (t
-           (error "om-dash: unknown om-dash-link-style %S" om-dash-link-style)))))
+           (error "om-dash: unknown om-dash-table-link-style %S" om-dash-table-link-style)))))
 
 (defun om-dash--insert-heading (keyword headline level)
   "Insert org heading with given text."
@@ -544,7 +556,7 @@ You can use it so specify cell font."
                      (cons name (length name)))
                    column-names)))
     ;; squeeze - remove empty columns
-    (when om-dash-squeeze-empty-columns
+    (when om-dash-table-squeeze-empty
       (let ((col-count (length columns)))
         (dotimes (idx col-count)
           (let ((col-num (- col-count idx 1)))
@@ -573,13 +585,13 @@ You can use it so specify cell font."
                 (setcdr (assoc col-name columns) cell-len)))
           (setq col-num (1+ col-num)))))
     ;; stretch - truncate or pad one column to fit total table width
-    (when om-dash-table-width
+    (when om-dash-table-fixed-width
       (let ((total-width 1))
         (dolist (col columns)
           (setq total-width (+ total-width 3 (cdr col))))
-        (when (not (eq total-width om-dash-table-width))
+        (when (not (eq total-width om-dash-table-fixed-width))
           (let ((col (elt columns stretch-col)))
-            (setcdr col (- om-dash-table-width
+            (setcdr col (- om-dash-table-fixed-width
                            (- total-width (cdr col))))))))
     ;; |--------|
     (om-dash--insert-indent level)

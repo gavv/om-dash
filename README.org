@@ -609,20 +609,20 @@ something like:
 Then this parameters are interpreted as usual.
 #+END:
 
-#+BEGIN: om-dash--readme-symbol :symbol om-dash-table-width
-*** om-dash-table-width
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-table-fixed-width
+*** om-dash-table-fixed-width
 If non-nil, align tables to have given fixed width.
 If nil, tables have minimum width that fits their contents.
 #+END:
 
-#+BEGIN: om-dash--readme-symbol :symbol om-dash-squeeze-empty-columns
-*** om-dash-squeeze-empty-columns
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-table-squeeze-empty
+*** om-dash-table-squeeze-empty
 If non-nil, automatically remove empty columns from tables.
 E.g. if every row has empty tags, :tags column is removed from this table.
 #+END:
 
-#+BEGIN: om-dash--readme-symbol :symbol om-dash-link-style
-*** om-dash-link-style
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-table-link-style
+*** om-dash-table-link-style
 How links are generated in om-dash tables.
 
 Allowed values:
