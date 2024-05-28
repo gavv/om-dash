@@ -175,7 +175,7 @@ Instructions for straight.el:
 
   ;; optional
   (straight-use-package
-   (el-csv
+   '(el-csv
     :type git
     :host github
     :repo "mrc/el-csv"
@@ -184,7 +184,7 @@ Instructions for straight.el:
 
   ;; om-dash
   (straight-use-package
-   (om-dash
+   '(om-dash
     :type git
     :host github
     :repo "gavv/om-dash"
