@@ -1,6 +1,6 @@
 # Changelog
 
-## [v0.2][v0.2] - ???
+## [v0.2][v0.2] - 28 May 2024
 
 * Unify variable naming:
   * rename `om-dash-table-width` to `om-dash-table-fixed-width`
