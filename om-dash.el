@@ -43,9 +43,10 @@
 (require 'cl-lib)
 (require 'json)
 (require 'org)
+(require 'seq)
+
 (require 'org-ql)
 (require 's)
-(require 'seq)
 (require 'ts)
 
 (when (featurep 'parse-csv)
