@@ -1,6 +1,6 @@
 ;;; om-dash.el --- Building blocks for org-based dashboards -*- lexical-binding: t -*-
 
-;; Copyright (C) 2024 Victor Gaydov
+;; Copyright (C) 2024 Victor Gaydov and contributors
 
 ;; Author: Victor Gaydov <victor@enise.org>
 ;; URL: https://github.com/gavv/om-dash
