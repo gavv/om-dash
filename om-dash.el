@@ -759,7 +759,8 @@ from https://github.com/mrc/el-csv
            (is-todo (om-dash--table-todo-p table)))
       (om-dash--insert-heading (om-dash--choose-keyword is-todo)
                                headline heading-level)
-      (om-dash--insert-table columns table heading-level)
+      (when table
+        (om-dash--insert-table columns table heading-level))
       (om-dash--remove-empty-line))))
 
 (defun om-dash--gh-headline (type)
@@ -1064,7 +1065,8 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                    table)))
               parsed-output)
       (om-dash--insert-heading (om-dash--choose-keyword todo) headline heading-level)
-      (om-dash--insert-table columns (nreverse table) heading-level)
+      (when table
+        (om-dash--insert-table columns (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
 
 (defun om-dash-github:milestone (params)
