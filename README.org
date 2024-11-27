@@ -357,17 +357,22 @@ Example usage:
 
 Parameters:
 
-| parameter      | default                   | description                      |
-|----------------+---------------------------+----------------------------------|
-| :file          | required                  | path to .org file                |
-| :todo          | 2                         | nesting level for TODO entries   |
-| :done          | 1                         | nesting level for DONE entries   |
-| :table-columns | =om-dash-orgfile-columns= | list of columns to display       |
-| :heading-level | auto                      | level for generated org headings |
+| parameter      | default                   | description                            |
+|----------------+---------------------------+----------------------------------------|
+| :file          | required                  | path to .org file                      |
+| :todo          | 2                         | nesting level for TODO entries         |
+| :done          | 1                         | nesting level for DONE entries         |
+| :digest        | nil                       | generate single table with all entries |
+| :table-columns | =om-dash-orgfile-columns= | list of columns to display             |
+| :headline      | auto                      | text for generated org headings        |
+| :heading-level | auto                      | level for generated org headings       |
 
 This block generates an org heading with a table for every top-level
 (i.e. level-1) org heading in specified =:file=, with nested headings
 represented as table rows.
+
+If =:digest= is t, a single table with all entries is generated,
+instead of separate table for every top-level entry.
 
 Parameters =:todo= and =:done= limit how deep the tree is traversed
 for top-level headings in =TODO= and =DONE= states.
@@ -393,6 +398,11 @@ variables =om-dash-todo-keywords= and =om-dash-done-keywords=.
 
 By default they are automatically populated from =org-todo-keywords-1=
 and =org-done-keywords=, but you can set them to your own values.
+
+=:headline= parameter defines text for org headings which contains
+tables. If =:digest= is t, there is only one table and =:headline=
+is just a string. Otherwise, there are many tables, and =:headline=
+is a format string where '%s' is title of the top-level entry.
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol org-dblock-write:om-dash-command

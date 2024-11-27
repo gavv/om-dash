@@ -1227,20 +1227,37 @@ Any other parameter is not used by template and passed to 'om-dash-github' as-is
         (cons 'or queries)
       (car queries))))
 
-(defun om-dash--orgfile-select (file todo-depth done-depth)
+(defun om-dash--orgfile-select (file todo-depth done-depth digest)
   "Construct and run org-ql query for om-dash-orgfile."
   (let ((path (expand-file-name file))
         (query (om-dash--orgfile-query todo-depth done-depth)))
-    (om-dash--log (format "%s: %S" path query))
-    (org-ql-select path query)))
+    (om-dash--log
+     (format "%s: %S" path query))
+    (let ((entries (org-ql-select path query)))
+      (if digest
+          (seq-map (lambda (entry)
+                     (let ((entry (org-element-copy entry)))
+                       (org-element-put-property
+                        entry :level (1+ (org-element-property :level entry)))
+                       entry))
+                   entries)
+        entries))))
 
-(defun om-dash--orgfile-level-title (title level)
+(defun om-dash--orgfile-leveled-keyword (keyword level)
+  "Format entry for keyword column in om-dash-orgfile block."
+  (let ((padding
+         (if (> level 2)
+             (s-repeat (* (- level 2) 1) " ")
+           "")))
+    (s-concat padding keyword)))
+
+(defun om-dash--orgfile-leveled-title (title level)
   "Format entry for title column in om-dash-orgfile block."
   (let ((padding
          (if (> level 2)
              (s-concat
               (s-repeat (* (- level 2) 2) " ")
-              "- ")
+              "* ")
            "")))
     (s-concat padding title)))
 
@@ -1255,17 +1272,22 @@ Example usage:
 
 Parameters:
 
-| parameter      | default                   | description                      |
-|----------------+---------------------------+----------------------------------|
-| :file          | required                  | path to .org file                |
-| :todo          | 2                         | nesting level for TODO entries   |
-| :done          | 1                         | nesting level for DONE entries   |
-| :table-columns | 'om-dash-orgfile-columns' | list of columns to display       |
-| :heading-level | auto                      | level for generated org headings |
+| parameter      | default                   | description                            |
+|----------------+---------------------------+----------------------------------------|
+| :file          | required                  | path to .org file                      |
+| :todo          | 2                         | nesting level for TODO entries         |
+| :done          | 1                         | nesting level for DONE entries         |
+| :digest        | nil                       | generate single table with all entries |
+| :table-columns | 'om-dash-orgfile-columns' | list of columns to display             |
+| :headline      | auto                      | text for generated org headings        |
+| :heading-level | auto                      | level for generated org headings       |
 
 This block generates an org heading with a table for every top-level
 (i.e. level-1) org heading in specified ':file', with nested headings
 represented as table rows.
+
+If ':digest' is t, a single table with all entries is generated,
+instead of separate table for every top-level entry.
 
 Parameters ':todo' and ':done' limit how deep the tree is traversed
 for top-level headings in 'TODO' and 'DONE' states.
@@ -1290,7 +1312,13 @@ Whether a heading is considered as 'TODO' or 'DONE' is defined by
 variables 'om-dash-todo-keywords' and 'om-dash-done-keywords'.
 
 By default they are automatically populated from 'org-todo-keywords-1'
-and 'org-done-keywords', but you can set them to your own values."
+and 'org-done-keywords', but you can set them to your own values.
+
+':headline' parameter defines text for org headings which contains
+tables. If ':digest' is t, there is only one table and ':headline'
+is just a string. Otherwise, there are many tables, and ':headline'
+is a format string where '%s' is title of the top-level entry.
+"
   ;; expand template
   (setq params
         (om-dash--expand-template params))
@@ -1300,12 +1328,15 @@ and 'org-done-keywords', but you can set them to your own values."
          (file-name (file-name-nondirectory file))
          (todo-depth (or (plist-get params :todo) 2))
          (done-depth (or (plist-get params :done) 1))
+         (digest (plist-get params :digest))
          (table-columns (or (plist-get params :table-columns)
                             om-dash-orgfile-columns))
+         (headline (plist-get params :headline))
          (heading-level (or (plist-get params :heading-level)
                             (om-dash--choose-level))))
     ;; run query
-    (let* ((entries (om-dash--orgfile-select file todo-depth done-depth))
+    (let* ((entries
+            (om-dash--orgfile-select file todo-depth done-depth digest))
            (columns
             (seq-map (lambda (col)
                        (cond ((eq col :state) "state")
@@ -1318,11 +1349,18 @@ and 'org-done-keywords', but you can set them to your own values."
                                  col))))
                      table-columns))
            table)
+      (when digest
+        (om-dash--insert-heading (om-dash--choose-keyword (length entries))
+                                 (if headline
+                                     headline
+                                   (format "org tasks (%s)" file-name))
+                                 heading-level))
       (dolist (entry entries)
         (let* ((level (org-element-property :level entry))
                (keyword (org-element-property :todo-keyword entry))
+               (leveled-keyword (om-dash--orgfile-leveled-keyword keyword level))
                (title (s-trim (car (org-element-property :title entry))))
-               (leveled-title (om-dash--orgfile-level-title title level))
+               (leveled-title (om-dash--orgfile-leveled-title title level))
                (line-number (with-current-buffer (org-element-property :buffer entry)
                               (goto-char (org-element-property :begin entry))
                               (line-number-at-pos)))
@@ -1334,13 +1372,16 @@ and 'org-done-keywords', but you can set them to your own values."
             (when table
               (om-dash--insert-table columns (nreverse table) heading-level)
               (setq table nil))
-            (om-dash--insert-heading keyword (format "%s (%s)" title file-name)
+            (om-dash--insert-heading keyword
+                                     (if headline
+                                         (format headline title)
+                                       (format "%s (%s)" title file-name))
                                      heading-level))
            (t
             (push
              (seq-map (lambda (col)
                         (cond ((eq col :state)
-                               (make-om-dash--cell :text keyword))
+                               (make-om-dash--cell :text leveled-keyword))
                               ((eq col :title)
                                (make-om-dash--cell :text leveled-title))
                               ((eq col :title-link)
