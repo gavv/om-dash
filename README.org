@@ -25,13 +25,14 @@ It was always a struggle to me to keep track of the "big picture" when I'm hoppi
 
 I wanted a tool that can give me a brief summary of all ongoing projects: what's done, what's next, and what requires attention. And then I realized that it can be easily implemented using org-mode, so here we go.
 
-Currently om-dash implementats three configurable dynamic blocks:
+Currently om-dash implementats a few configurable dynamic blocks:
 
-- =om-dash-github= - generates a table with issues or pull requests from github repository
+- =om-dash-github-topics= - generates a table with issues or pull requests from github repository
+- =om-dash-github-project-cards= - generates a table with cards from github classic project
 - =om-dash-orgfile= - generates tables with top-level entries from an org file
 - =om-dash-command= - generates a table from the output of a shell command
 
-It also provides a minor mode (=om-dash-mode=) that applies highlighting to the generated tables.
+The package also provides a minor mode (=om-dash-mode=) to apply color highlighting to the generated tables.
 
 In addition, there is support for templates, which allows to create reusable parameterized configurations of the above blocks (e.g. for specific github query or shell command).
 
@@ -50,7 +51,7 @@ On top of that, I have a file called "dashboard.org" with a top-level entry for 
 - a block with all open or recently merged pull requests from github
 - another block with open github issues (for big projects, I display only issues from specific column of github kanban board, or from specific milestone)
 - one block for every ongoing or upcoming milestone from my personal org file for this project, showing top level tasks from each milestone
-- block with project's IMAP directories and unread email counter
+- block with project's IMAP directories and unread email counters
 
 Screenshot of a project from "dashboard.org" described above:
 
@@ -65,7 +66,7 @@ Screenshot of a project from "dashboard.org" described above:
 Display all open pull requests and pull requests closed last month.
 
 #+begin_example
-,#+BEGIN: om-dash-github :repo "roc-streaming/roc-toolkit" :type pr :open "*" :closed "-1mo"
+,#+BEGIN: om-dash-github-topics :repo "roc-streaming/roc-toolkit" :type pr :open "*" :closed "-1mo"
 ...
 ,#+END:
 #+end_example
@@ -77,26 +78,36 @@ Display all open pull requests and pull requests closed last month.
 Display all open issues except those which have "help wanted" label.
 
 #+begin_example
-,#+BEGIN: om-dash-github :repo "gavv/signal-estimator" :type issue :open "-label:\"help wanted\""
+,#+BEGIN: om-dash-github-topics :repo "gavv/signal-estimator" :type issue :open "-label:\"help wanted\""
 ...
 ,#+END:
 #+end_example
 
 [[./screenshot/github_issues.png]]
 
-*** Github project column
+*** Github project items
 
-Display all open issues from "In work" column of github project with id "2".
-
-This examples uses built-in =project-column= template, which transforms =:project= and =:column= arguments into corresponding github queries for =om-dash-github= block.
+Display all items from github project v2 (non-clasic, a.k.a. beta) with project id "5", item type "Issue", and item status "In work".
 
 #+begin_example
-,#+BEGIN: om-dash-github :template project-column :repo "roc-streaming/roc-toolkit" :type issue :project 2 :column "In work"
+,#+BEGIN: om-dash-github-project-items :owner "roc-streaming" :project 5 :type issue :status "In work"
 ...
 ,#+END:
 #+end_example
 
-[[./screenshot/github_project_column.png]]
+[[./screenshot/github_project_items.png]]
+
+*** Github project cards (classic)
+
+Display all cards from github classic project (now being deprecated by github) with project id "2", card type "issue", and column name "In work".
+
+#+begin_example
+,#+BEGIN: om-dash-github-project-cards :repo "roc-streaming/roc-toolkit" :project 2 :column "In work" :type issue :state open
+...
+,#+END:
+#+end_example
+
+[[./screenshot/github_project_cards.png]]
 
 *** Tasks from org file
 
@@ -110,7 +121,7 @@ Display 1-level TODO tasks as tables with their child 2-level TODO tasks as tabl
 
 [[./screenshot/org_tasks.png]]
 
-*** Project email
+*** Custom command
 
 Display unread email counters for project's IMAP directories fetched by Claws Mail client.
 
@@ -135,7 +146,7 @@ This example uses custom (not built-in) template, which transforms =:folder= arg
              '(claws-mail . my-claws-mail-template))
 #+end_src
 
-(Here, =claws2json= is a small script I wrote that reads =folderlist.xml= file produced by Claws Mail and prints a table in JSON format.)
+(Here, =claws2json= is a small script I wrote that reads =folderlist.xml= file maintained by Claws Mail and prints a table in JSON format.)
 
 ** Contributions
 
@@ -253,14 +264,14 @@ the function updates all blocks inside 1.1, 1.1.1, 1.1.2.
 
 This section lists dynamic blocks implemented by =om-dash=. Each block named =om-dash-xxx= corresponds to a function named =org-dblock-write:om-dash-xxx=.
 
-#+BEGIN: om-dash--readme-symbol :symbol org-dblock-write:om-dash-github
-*** om-dash-github
+#+BEGIN: om-dash--readme-symbol :symbol org-dblock-write:om-dash-github-topics
+*** om-dash-github-topics
 Builds org heading with a table of github issues or pull requests.
 
 Basic example:
 
 #+begin_example
-  ,#+BEGIN: om-dash-github :repo "octocat/linguist" :type pr :open "*" :closed "-1w"
+  ,#+BEGIN: om-dash-github-topics :repo "octocat/linguist" :type pullreq :open "*" :closed "-1w"
   ...
   ,#+END:
 #+end_example
@@ -268,26 +279,26 @@ Basic example:
 More advanced example:
 
 #+begin_example
-  ,#+BEGIN: om-dash-github :repo "octocat/hello-world" :type any :open ("comments:>2" ".title | contains(\"Hello\")") :sort "updatedAt" :limit 100
+  ,#+BEGIN: om-dash-github-topics :repo "octocat/hello-world" :type any :open ("comments:>2" ".title | contains(\"Hello\")") :sort "updatedAt" :limit 100
   ...
   ,#+END:
 #+end_example
 
 Parameters:
 
-| parameter      | default                  | description                          |
-|----------------+--------------------------+--------------------------------------|
-| :repo          | required                 | github repo in form “<login>/<repo>“ |
-| :type          | required                 | topic type (=issue=, =pr=, =any=)    |
-| :any           | match none (““)          | query for topics in any state        |
-| :open          | match all (“*“)          | query for topics in open state       |
-| :closed        | match none (““)          | query for topics in closed state     |
-| :sort          | “createdAt“              | sort results by given field          |
-| :fields        | =om-dash-github-fields=  | explicitly specify list of fields    |
-| :limit         | =om-dash-github-limit=   | limit number of results              |
-| :table-columns | =om-dash-github-columns= | list of columns to display           |
-| :headline      | auto                     | text for generated org heading       |
-| :heading-level | auto                     | level for generated org heading      |
+| parameter      | default                  | description                            |
+|----------------+--------------------------+----------------------------------------|
+| :repo          | required                 | github repo in form “<owner>/<repo>“   |
+| :type          | required                 | topic type (=issue=, =pullreq=, =any=) |
+| :any           | match none (““)          | query for topics in any state          |
+| :open          | match all (“*“)          | query for topics in open state         |
+| :closed        | match none (““)          | query for topics in closed state       |
+| :sort          | “createdAt“              | sort results by given field            |
+| :fields        | =om-dash-github-fields=  | explicitly specify list of fields      |
+| :limit         | =om-dash-github-limit=   | limit number of results                |
+| :table-columns | =om-dash-github-columns= | list of columns to display             |
+| :headline      | auto                     | text for generated org heading         |
+| :heading-level | auto                     | level for generated org heading        |
 
 A query for =:any=, =:open=, and =:closed= can have one of the two forms:
  - "github-query"
@@ -343,6 +354,46 @@ The latter allows to exclude fields that makes queries slower, when they're
 not used. To change this, you can specify =:fields= parameter explicitly.
 #+END:
 
+#+BEGIN: om-dash--readme-symbol :symbol org-dblock-write:om-dash-github-project-cards
+*** om-dash-github-project-cards
+Builds org heading with a table of github =classic= project cards.
+
+Note: if you're using new github projects (a.k.a. projects v2, a.k.a projects beta),
+which are currently default, then use =om-dash-github-project-items= instead.
+
+Usage example:
+#+begin_example
+  ,#+BEGIN: om-dash-github-project-cards :repo "owner/repo" :project 123 :column "name" :type issue
+  ...
+  ,#+END:
+#+end_example
+
+Parameters:
+
+| parameter      | default                  | description                            |
+|----------------+--------------------------+----------------------------------------|
+| :repo          | required                 | github repo in form “<owner>/<repo>“   |
+| :project       | required                 | project identifier (number)            |
+| :column        | required                 | project column name (string)           |
+| :type          | required                 | topic type (=issue=, =pullreq=, =any=) |
+| :state         | =open=                   | topic state (=open=, =closed=, =any=)  |
+| :sort          | “createdAt“              | sort results by given field            |
+| :fields        | =om-dash-github-fields=  | explicitly specify list of fields      |
+| :limit         | =om-dash-github-limit=   | limit number of results                |
+| :table-columns | =om-dash-github-columns= | list of columns to display             |
+| :headline      | auto                     | text for generated org heading         |
+| :heading-level | auto                     | level for generated org heading        |
+
+=:project= field specifies project numeric identifier (you can see it in URL on github).
+=:column= field specifies the name of a column.
+
+=:type= defines that types of cards to display: issues, pull requests, or all.
+=:state= defines whether to display open and closed issues and pull requests.
+
+All other parameters are identical to =om-dash-github-topics=, see its docstring
+for more details.
+#+END:
+
 #+BEGIN: om-dash--readme-symbol :symbol org-dblock-write:om-dash-orgfile
 *** om-dash-orgfile
 Builds org headings with tables based on another org file.
@@ -350,7 +401,7 @@ Builds org headings with tables based on another org file.
 Example usage:
 
 #+begin_example
-  ,#+BEGIN: om-dash-orgfile :repo :file "~/my/file.org" :todo 2 :done 1
+  ,#+BEGIN: om-dash-orgfile :file "~/my/file.org" :todo 2 :done 1
   ...
   ,#+END:
 #+end_example
@@ -440,40 +491,43 @@ This section lists built-in templates provided by =om-dash=. You can define your
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-github:milestone
 *** om-dash-github:milestone
-Template for =om-dash-github= block to display topics from given milestone.
+Template for =om-dash-github-topics= block to display topics from given milestone.
 
-Can be used as =:template= =milestone= with =om-dash-github= block.
+Can be used as =:template= =milestone= with =om-dash-github-topics= block.
 
 Usage example:
 #+begin_example
-  ,#+BEGIN: om-dash-github :template milestone :repo "user/repo" :type issue :milestone "name"
+  ,#+BEGIN: om-dash-github-topics :template milestone :repo "owner/repo" :type issue :milestone "name"
   ...
   ,#+END:
 #+end_example
 
 Parameters:
 
-| parameter      | default  | description                           |
-|----------------+----------+---------------------------------------|
-| :repo          | required | github repo in form “<login>/<repo>“  |
-| :type          | required | topic type (=issue=, =pr=, =any=)     |
-| :state         | =open=   | topic state (=open=, =closed=, =any=) |
-| :milestone     | required | milestone name (string)               |
-| :headline      | auto     | text for generated org heading        |
-| :heading-level | auto     | level for generated org heading       |
+| parameter      | default  | description                            |
+|----------------+----------+----------------------------------------|
+| :repo          | required | github repo in form “<owner>/<repo>“   |
+| :type          | required | topic type (=issue=, =pullreq=, =any=) |
+| :state         | =open=   | topic state (=open=, =closed=, =any=)  |
+| :milestone     | required | milestone name (string)                |
+| :headline      | auto     | text for generated org heading         |
+| :heading-level | auto     | level for generated org heading        |
 
-Any other parameter is not used by template and passed to =om-dash-github= as-is.
+Any other parameter is not used by template and passed to =om-dash-github-topics= as-is.
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-github:project-column
 *** om-dash-github:project-column
-Template for =om-dash-github= block to display topics from given project's column.
+Template for =om-dash-github-topics= block to display topics from given classic project's column.
 
-Can be used as =:template= =project-column= with =om-dash-github= block.
+Can be used as =:template= =project-column= with =om-dash-github-topics= block.
+
+This template supports only classic projects and is OBSOLETE. Use =om-dash-github-project-items=
+or =om-dash-github-project-cards= dynamic blocks instead.
 
 Usage example:
 #+begin_example
-  ,#+BEGIN: om-dash-github :template project-column :repo "user/repo" :type issue :project 123 :column "name"
+  ,#+BEGIN: om-dash-github-topics :template project-column :repo "owner/repo" :type issue :project 123 :column "name"
   ...
   ,#+END:
 #+end_example
@@ -482,15 +536,15 @@ Parameters:
 
 | parameter      | default  | description                                              |
 |----------------+----------+----------------------------------------------------------|
-| :repo          | required | github repo in form “<login>/<repo>“                     |
-| :type          | required | topic type (=issue=, =pr=, =any=)                        |
+| :repo          | required | github repo in form “<owner>/<repo>“                     |
+| :type          | required | topic type (=issue=, =pullreq=, =any=)                   |
 | :state         | =open=   | topic state (=open=, =closed=, =any=)                    |
-| :project       | required | project id in form <number> or “<login>/<repo>/<number>“ |
+| :project       | required | project id in form <number> or “<owner>/<repo>/<number>“ |
 | :column        | required | project column name (string)                             |
 | :headline      | auto     | text for generated org heading                           |
 | :heading-level | auto     | level for generated org heading                          |
 
-Any other parameter is not used by template and passed to =om-dash-github= as-is.
+Any other parameter is not used by template and passed to =om-dash-github-topics= as-is.
 #+END:
 
 ** Minor mode
@@ -595,28 +649,28 @@ This function is invoked with dynamic block parameters plist and should
 return a new plist. The new plist is used to update the original
 parameters by appending new values and overwriting existing values.
 
-For example, if =org-dblock-write:om-dash-github= block has parameters:
+For example, if =org-dblock-write:om-dash-github-topics= block has parameters:
 #+begin_example
-  (:template project-column
+  (:template milestone
    :repo "owner/repo"
-   :type 'pr
-   :project 123
-   :column "In progress")
+   :type 'issue
+   :milestone "1.2.3")
 #+end_example
 
-Dynamic block will use =project-column= as a key in =om-dash-templates=
-and find =om-dash-github:project-column= function.
+Dynamic block will use =milestone= as a key in =om-dash-templates=
+and find =om-dash-github:milestone= function.
 
-The function is invoked with all the parameters above, and returns
-something like:
+The function is invoked with the original parameter list, and returns
+a modified parameter list:
 #+begin_example
   (:repo "owner/repo"
-   :type 'pr
-   :open ("project:owner/repo/123"
-          ".projectCards[] | (.column.name == \"In progress\")"))
+   :type 'issue
+   :headline "issues (owner/repo \"1.2.3\")"
+   :open "milestone:\"1.2.3\""
+   :closed "")
 #+end_example
 
-Then this parameters are interpreted as usual.
+Then modified parameters are interpreted by dynamic block as usual.
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-table-fixed-width
@@ -651,13 +705,13 @@ Supported values:
 |-------------+-----------------|
 | :state      | TODO, DONE, ... |
 | :title      | text            |
-| :title-link | [​[link][text]] |
+| :title-link | [​[link][text]]  |
 | :tags       | :tag1:tag2:...: |
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-github-columns
 *** om-dash-github-columns
-Column list for =om-dash-github= table.
+Column list for =om-dash-github-topics= table.
 
 Supported values:
 
@@ -667,7 +721,7 @@ Supported values:
 | :number     | #123              |
 | :author     | @octocat          |
 | :title      | text              |
-| :title-link | [​[link][text]]   |
+| :title-link | [​[link][text]]    |
 | :tags       | :tag1:tag2:...:   |
 #+END:
 
@@ -692,7 +746,7 @@ slow down response times.
 There is also =om-dash-github-auto-enabled-fields=, which defines fields
 that are enabled automatically for a query if jq selector contains them.
 
-In addition, =org-dblock-write:om-dash-github= accepts =:fields=
+In addition, =org-dblock-write:om-dash-github-*= accept =:fields=
 parameter, which can be used to overwrite fields list per-block.
 #+END:
 

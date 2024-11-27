@@ -115,24 +115,24 @@ This function is invoked with dynamic block parameters plist and should
 return a new plist. The new plist is used to update the original
 parameters by appending new values and overwriting existing values.
 
-For example, if 'org-dblock-write:om-dash-github' block has parameters:
-  (:template project-column
+For example, if 'org-dblock-write:om-dash-github-topics' block has parameters:
+  (:template milestone
    :repo \"owner/repo\"
-   :type 'pr
-   :project 123
-   :column \"In progress\")
+   :type 'issue
+   :milestone \"1.2.3\")
 
-Dynamic block will use 'project-column' as a key in 'om-dash-templates'
-and find 'om-dash-github:project-column' function.
+Dynamic block will use 'milestone' as a key in 'om-dash-templates'
+and find 'om-dash-github:milestone' function.
 
-The function is invoked with all the parameters above, and returns
-something like:
+The function is invoked with the original parameter list, and returns
+a modified parameter list:
   (:repo \"owner/repo\"
-   :type 'pr
-   :open (\"project:owner/repo/123\"
-          \".projectCards[] | (.column.name == \\\"In progress\\\")\"))
+   :type 'issue
+   :headline \"issues (owner/repo \\\"1.2.3\\\")\"
+   :open \"milestone:\\\"1.2.3\\\"\"
+   :closed \"\")
 
-Then this parameters are interpreted as usual.")
+Then modified parameters are interpreted by dynamic block as usual.")
 
 (defvar om-dash-table-fixed-width nil
   "If non-nil, align tables to have given fixed width.
@@ -182,7 +182,7 @@ Supported values:
     :number
     :author
     :title-link)
-  "Column list for 'om-dash-github' table.
+  "Column list for 'om-dash-github-topics' table.
 
 Supported values:
 
@@ -204,7 +204,7 @@ only last 'om-dash-github-limit' results are returned.")
 
 (defvar om-dash-github-fields
   '(
-    (pr
+    (pullreq
      .
      ("assignees"
       "author"
@@ -265,12 +265,12 @@ slow down response times.
 There is also 'om-dash-github-auto-enabled-fields', which defines fields
 that are enabled automatically for a query if jq selector contains them.
 
-In addition, 'org-dblock-write:om-dash-github' accepts ':fields'
+In addition, 'org-dblock-write:om-dash-github-*' accept ':fields'
 parameter, which can be used to overwrite fields list per-block.")
 
 (defvar om-dash-github-auto-enabled-fields
   '(
-    (pr
+    (pullreq
      .
      (
       "additions"
@@ -445,6 +445,12 @@ You can use it so specify cell font."
         (insert ">>> ")
         (insert msg)
         (insert "\n"))))
+
+(defun om-dash--canon-type (type)
+  (cond ((eq type 'pr)
+         (warn "'pr is deprecated, use 'pullreq instead")
+         'pullreq)
+        (t type)))
 
 (cl-defstruct om-dash--cell
   "Struct that represents single table cell."
@@ -656,19 +662,23 @@ You can use it so specify cell font."
 
 (defun om-dash--expand-template (params)
   "Return params with expanded :template (if it's present)"
-  (if-let ((template-name (plist-get params :template)))
-      (let* ((template (or (assoc template-name om-dash-templates)
-                           (error "om-dash: unknown :template %s"
-                                  template-name)))
-             (expanded-params (funcall (cdr template) params))
-             (merged-params (seq-copy params)))
-        (while expanded-params
-          (let ((key (car expanded-params))
-                (val (cadr expanded-params)))
-            (setq merged-params (plist-put merged-params key val))
-            (setq expanded-params (cddr expanded-params))))
-        merged-params)
-    params))
+  (let ((result-params
+         (if-let ((template-name (plist-get params :template)))
+             (let* ((template (or (assoc template-name om-dash-templates)
+                                  (error "om-dash: unknown :template %s"
+                                         template-name)))
+                    (expanded-params (funcall (cdr template) params))
+                    (merged-params (seq-copy params)))
+               (while expanded-params
+                 (let ((key (car expanded-params))
+                       (val (cadr expanded-params)))
+                   (setq merged-params (plist-put merged-params key val))
+                   (setq expanded-params (cddr expanded-params))))
+               merged-params)
+           (seq-copy params))))
+    (if (plist-member result-params :template)
+        (cl-remf result-params :template))
+    result-params))
 
 (defun om-dash--parse-json (columns raw-output)
   "Parse json output to table."
@@ -765,15 +775,28 @@ from https://github.com/mrc/el-csv
 
 (defun om-dash--gh-headline (type)
   "Get name for github type."
-  (cond ((eq type 'issue) "issues")
-        ((eq type 'pr) "pull requests")
-        ((eq type 'any) "issues and pull requests")
-        (t (error "om-dash: bad type %S" type))))
+  (let ((type (om-dash--canon-type type)))
+    (cond ((eq type 'issue) "issues")
+          ((eq type 'pullreq) "pull requests")
+          ((eq type 'any) "issues and pull requests")
+          (t (error "om-dash: bad type %S" type)))))
 
 (defun om-dash--gh-quote (str)
   "Quote argument of github query search term."
   (s-replace "\"" "\\\""
              (s-replace "\\" "\\\\" str)))
+
+(defun om-dash--gh-map-fields (field-map type)
+  "Get field list from map by topic type."
+  (let* ((type (om-dash--canon-type type))
+         (key (if (eq type 'pullreq)
+                  (if (assoc 'pr field-map)
+                      (progn
+                        (warn "'pr is deprecated, use 'pullreq instead")
+                        'pr)
+                    'pullreq)
+                type)))
+    (cdr (assoc key field-map))))
 
 (defun om-dash--gh-fields (type selector fields)
   "Construct fields list for gh command."
@@ -781,12 +804,12 @@ from https://github.com/mrc/el-csv
   (unless fields
     ;; add all fields enabled by default
     (setq fields
-          (cdr (assoc type om-dash-github-fields)))
+          (om-dash--gh-map-fields om-dash-github-fields type))
     (if selector
         ;; add all fields that are disabled by default but are
         ;; present in jq selector
         (dolist (field
-                 (cdr (assoc type om-dash-github-auto-enabled-fields)))
+                 (om-dash--gh-map-fields om-dash-github-auto-enabled-fields type))
           (if (s-contains-p field selector)
               (setq fields
                     (append fields (list field)))))))
@@ -829,13 +852,14 @@ from https://github.com/mrc/el-csv
 
 (defun om-dash--gh-command (repo type state filter fields limit)
   "Construct gh command."
-  (let ((query (car filter))
+  (let ((type (om-dash--canon-type type))
+        (query (car filter))
         (selector (cadr filter))
         command)
     (when (s-present-p query)
       (let ((fields
              (s-join "," (om-dash--gh-fields type selector fields)))
-            (subcmd (cond ((eq type 'pr) "pr")
+            (subcmd (cond ((eq type 'pullreq) "pr")
                           ((eq type 'issue) "issue")
                           (t (error "om-dash: bad :type %S" type))))
             (search
@@ -871,9 +895,9 @@ from https://github.com/mrc/el-csv
 
 (defun om-dash--github-run (repo type any-filter open-filter closed-filter
                                  sort-by fields limit)
-  "Construct and run command for om-dash-github."
+  "Construct and run command for om-dash-github-*."
   (let* ((gh-types
-          (if (eq type 'any) (list 'pr 'issue)
+          (if (eq type 'any) (list 'pullreq 'issue)
             (list type)))
          (gh-commands
           (seq-remove 'not
@@ -908,36 +932,40 @@ from https://github.com/mrc/el-csv
       (dolist (out gh-outputs)
         (delete-file out)))))
 
-(defun org-dblock-write:om-dash-github (params)
+(define-obsolete-function-alias
+  'org-dblock-write:om-dash-github
+  'org-dblock-write:om-dash-github-topics "0.3")
+
+(defun org-dblock-write:om-dash-github-topics (params)
   "Builds org heading with a table of github issues or pull requests.
 
 Basic example:
 
-  #+BEGIN: om-dash-github :repo \"octocat/linguist\" :type pr :open \"*\" :closed \"-1w\"
+  #+BEGIN: om-dash-github-topics :repo \"octocat/linguist\" :type pullreq :open \"*\" :closed \"-1w\"
   ...
   #+END:
 
 More advanced example:
 
-  #+BEGIN: om-dash-github :repo \"octocat/hello-world\" :type any :open (\"comments:>2\" \".title | contains(\\\"Hello\\\")\") :sort \"updatedAt\" :limit 100
+  #+BEGIN: om-dash-github-topics :repo \"octocat/hello-world\" :type any :open (\"comments:>2\" \".title | contains(\\\"Hello\\\")\") :sort \"updatedAt\" :limit 100
   ...
   #+END:
 
 Parameters:
 
-| parameter      | default                  | description                          |
-|----------------+--------------------------+--------------------------------------|
-| :repo          | required                 | github repo in form “<login>/<repo>“ |
-| :type          | required                 | topic type ('issue', 'pr', 'any')    |
-| :any           | match none (““)          | query for topics in any state        |
-| :open          | match all (“*“)          | query for topics in open state       |
-| :closed        | match none (““)          | query for topics in closed state     |
-| :sort          | “createdAt“              | sort results by given field          |
-| :fields        | 'om-dash-github-fields'  | explicitly specify list of fields    |
-| :limit         | 'om-dash-github-limit'   | limit number of results              |
-| :table-columns | 'om-dash-github-columns' | list of columns to display           |
-| :headline      | auto                     | text for generated org heading       |
-| :heading-level | auto                     | level for generated org heading      |
+| parameter      | default                  | description                            |
+|----------------+--------------------------+----------------------------------------|
+| :repo          | required                 | github repo in form “<owner>/<repo>“   |
+| :type          | required                 | topic type ('issue', 'pullreq', 'any') |
+| :any           | match none (““)          | query for topics in any state          |
+| :open          | match all (“*“)          | query for topics in open state         |
+| :closed        | match none (““)          | query for topics in closed state       |
+| :sort          | “createdAt“              | sort results by given field            |
+| :fields        | 'om-dash-github-fields'  | explicitly specify list of fields      |
+| :limit         | 'om-dash-github-limit'   | limit number of results                |
+| :table-columns | 'om-dash-github-columns' | list of columns to display             |
+| :headline      | auto                     | text for generated org heading         |
+| :heading-level | auto                     | level for generated org heading        |
 
 A query for ':any', ':open', and ':closed' can have one of the two forms:
  - \"github-query\"
@@ -1069,28 +1097,74 @@ not used. To change this, you can specify ':fields' parameter explicitly.
         (om-dash--insert-table columns (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
 
-(defun om-dash-github:milestone (params)
-  "Template for 'om-dash-github' block to display topics from given milestone.
+(defun org-dblock-write:om-dash-github-project-cards (params)
+  "Builds org heading with a table of github 'classic' project cards.
 
-Can be used as ':template' 'milestone' with 'om-dash-github' block.
+Note: if you're using new github projects (a.k.a. projects v2, a.k.a projects beta),
+which are currently default, then use 'om-dash-github-project-items' instead.
 
 Usage example:
-  #+BEGIN: om-dash-github :template milestone :repo \"user/repo\" :type issue :milestone \"name\"
+  #+BEGIN: om-dash-github-project-cards :repo \"owner/repo\" :project 123 :column \"name\" :type issue
   ...
   #+END:
 
 Parameters:
 
-| parameter      | default  | description                           |
-|----------------+----------+---------------------------------------|
-| :repo          | required | github repo in form “<login>/<repo>“  |
-| :type          | required | topic type ('issue', 'pr', 'any')     |
-| :state         | 'open'   | topic state ('open', 'closed', 'any') |
-| :milestone     | required | milestone name (string)               |
-| :headline      | auto     | text for generated org heading        |
-| :heading-level | auto     | level for generated org heading       |
+| parameter      | default                  | description                                              |
+|----------------+--------------------------+----------------------------------------------------------|
+| :repo          | required                 | github repo in form “<owner>/<repo>“                     |
+| :project       | required                 | project identifier (number)                              |
+| :column        | required                 | project column name (string)                             |
+| :type          | required                 | topic type ('issue', 'pullreq', 'any')                   |
+| :state         | 'open'                   | topic state ('open', 'closed', 'any')                    |
+| :sort          | “createdAt“              | sort results by given field                              |
+| :fields        | 'om-dash-github-fields'  | explicitly specify list of fields                        |
+| :limit         | 'om-dash-github-limit'   | limit number of results                                  |
+| :table-columns | 'om-dash-github-columns' | list of columns to display                               |
+| :headline      | auto                     | text for generated org heading                           |
+| :heading-level | auto                     | level for generated org heading                          |
 
-Any other parameter is not used by template and passed to 'om-dash-github' as-is."
+':project' field specifies project numeric identifier (you can see it in URL on github).
+':column' field specifies the name of a column.
+
+':type' defines that types of cards to display: issues, pull requests, or all.
+':state' defines whether to display open and closed issues and pull requests.
+
+All other parameters are identical to 'om-dash-github-topics', see its docstring
+for more details.
+"
+  ;; expand template
+  (setq params
+        (om-dash--expand-template params))
+  ;; build query
+  (setq params
+        (om-dash-github--classic-project-cards-query params))
+  ;; get topics
+  (org-dblock-write:om-dash-github-topics
+   params))
+
+(defun om-dash-github:milestone (params)
+  "Template for 'om-dash-github-topics' block to display topics from given milestone.
+
+Can be used as ':template' 'milestone' with 'om-dash-github-topics' block.
+
+Usage example:
+  #+BEGIN: om-dash-github-topics :template milestone :repo \"owner/repo\" :type issue :milestone \"name\"
+  ...
+  #+END:
+
+Parameters:
+
+| parameter      | default  | description                            |
+|----------------+----------+----------------------------------------|
+| :repo          | required | github repo in form “<owner>/<repo>“   |
+| :type          | required | topic type ('issue', 'pullreq', 'any') |
+| :state         | 'open'   | topic state ('open', 'closed', 'any')  |
+| :milestone     | required | milestone name (string)                |
+| :headline      | auto     | text for generated org heading         |
+| :heading-level | auto     | level for generated org heading        |
+
+Any other parameter is not used by template and passed to 'om-dash-github-topics' as-is."
   ;; parse params
   (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
          (type (or (plist-get params :type) (error "om-dash: missing :type")))
@@ -1120,12 +1194,15 @@ Any other parameter is not used by template and passed to 'om-dash-github' as-is
      states)))
 
 (defun om-dash-github:project-column (params)
-  "Template for 'om-dash-github' block to display topics from given project's column.
+  "Template for 'om-dash-github-topics' block to display topics from given classic project's column.
 
-Can be used as ':template' 'project-column' with 'om-dash-github' block.
+Can be used as ':template' 'project-column' with 'om-dash-github-topics' block.
+
+This template supports only classic projects and is OBSOLETE. Use 'om-dash-github-project-items'
+or 'om-dash-github-project-cards' dynamic blocks instead.
 
 Usage example:
-  #+BEGIN: om-dash-github :template project-column :repo \"user/repo\" :type issue :project 123 :column \"name\"
+  #+BEGIN: om-dash-github-topics :template project-column :repo \"owner/repo\" :type issue :project 123 :column \"name\"
   ...
   #+END:
 
@@ -1133,15 +1210,23 @@ Parameters:
 
 | parameter      | default  | description                                              |
 |----------------+----------+----------------------------------------------------------|
-| :repo          | required | github repo in form “<login>/<repo>“                     |
-| :type          | required | topic type ('issue', 'pr', 'any')                        |
+| :repo          | required | github repo in form “<owner>/<repo>“                     |
+| :type          | required | topic type ('issue', 'pullreq', 'any')                   |
 | :state         | 'open'   | topic state ('open', 'closed', 'any')                    |
-| :project       | required | project id in form <number> or “<login>/<repo>/<number>“ |
+| :project       | required | project id in form <number> or “<owner>/<repo>/<number>“ |
 | :column        | required | project column name (string)                             |
 | :headline      | auto     | text for generated org heading                           |
 | :heading-level | auto     | level for generated org heading                          |
 
-Any other parameter is not used by template and passed to 'om-dash-github' as-is."
+Any other parameter is not used by template and passed to 'om-dash-github-topics' as-is."
+  (om-dash-github--classic-project-cards-query
+   params))
+
+(make-obsolete
+ 'om-dash-github:project-column
+ 'org-dblock-write:om-dash-github-project-cards "0.3")
+
+(defun om-dash-github--classic-project-cards-query (params)
   ;; parse params
   (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
          (type (or (plist-get params :type) (error "om-dash: missing :type")))
@@ -1266,7 +1351,7 @@ Any other parameter is not used by template and passed to 'om-dash-github' as-is
 
 Example usage:
 
-  #+BEGIN: om-dash-orgfile :repo :file \"~/my/file.org\" :todo 2 :done 1
+  #+BEGIN: om-dash-orgfile :file \"~/my/file.org\" :todo 2 :done 1
   ...
   #+END:
 
