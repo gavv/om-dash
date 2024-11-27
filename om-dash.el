@@ -41,6 +41,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'imap)
 (require 'json)
 (require 'org)
 (require 'seq)
@@ -86,6 +87,10 @@ and pre-defined github keywords.")
     ("OPEN" . om-dash-open-keyword)
     ("MERGED" . om-dash-merged-keyword)
     ("CLOSED" . om-dash-closed-keyword)
+    ;; imap
+    ("NEW" . om-dash-new-keyword)
+    ("UNREAD" . om-dash-unread-keyword)
+    ("CLEAN" . om-dash-clean-keyword)
     )
   "Assoc list to map keywords to faces.
 
@@ -162,21 +167,6 @@ Allowed values:
   'om-dash-link-style
   'om-dash-table-link-style "0.2")
 
-(defvar om-dash-orgfile-columns
-  '(:state
-    :title-link)
-  "Column list for 'om-dash-orgfile' table.
-
-Supported values:
-
-| symbol      | example         |
-|-------------+-----------------|
-| :state      | TODO, DONE, ... |
-| :title      | text            |
-| :title-link | [[link][text]]  |
-| :tags       | :tag1:tag2:...: |
-")
-
 (defvar om-dash-github-columns
   '(:state
     :number
@@ -194,6 +184,40 @@ Supported values:
 | :title      | text              |
 | :title-link | [[link][text]]    |
 | :tags       | :tag1:tag2:...:   |
+")
+
+(defvar om-dash-orgfile-columns
+  '(:state
+    :title-link)
+  "Column list for 'om-dash-orgfile' table.
+
+Supported values:
+
+| symbol      | example         |
+|-------------+-----------------|
+| :state      | TODO, DONE, ... |
+| :title      | text            |
+| :title-link | [[link][text]]  |
+| :tags       | :tag1:tag2:...: |
+")
+
+(defvar om-dash-imap-columns
+  '(:state
+    :new
+    :unread
+    :total
+    :folder)
+  "Column list for 'om-dash-imap' table.
+
+Supported values:
+
+| symbol      | example            |
+|-------------+--------------------|
+| :state      | NEW, UNREAD, CLEAN |
+| :new        | 10                 |
+| :unread     | 20                 |
+| :total      | 30                 |
+| :folder     | foo/bar            |
 ")
 
 (defvar om-dash-github-limit 200
@@ -300,6 +324,56 @@ parameter, which can be used to overwrite fields list per-block.")
 
 See 'om-dash-github-fields' for more details.")
 
+(defvar om-dash-imap-host nil
+  "Default IMAP server hostname.
+
+Used by 'om-dash-imap' if ':host' parameter is not provided.
+Host must be always set, either via ':host' or 'om-dash-imap-host'.")
+
+(defvar om-dash-imap-port nil
+  "Default IMAP server port number.
+
+Used by 'om-dash-imap' if ':port' parameter is not provided.
+If port is not set, default IMAP port is used.")
+
+(defvar om-dash-imap-machine nil
+  "Default ~/.authinfo machine for IMAP server.
+
+Used by 'om-dash-imap' if ':machine' parameter is not provided.
+If machine is not set, value of host is used.")
+
+(defvar om-dash-imap-user nil
+  "Default username for IMAP server.
+
+Used by 'om-dash-imap' if ':user' parameter is not provided.
+If user is not set, it's read from ~/.authinfo.
+See also 'om-dash-imap-machine'.")
+
+(defvar om-dash-imap-password nil
+  "Default username for IMAP server.
+
+Used by 'om-dash-imap' if ':password' parameter is not provided.
+If password is not set, it's read from ~/.authinfo.
+See also 'om-dash-imap-machine'.")
+
+(defvar om-dash-imap-stream nil
+  "Default STREAM parameter for 'imap-open'.
+
+Used by 'om-dash-imap' if ':stream' parameter is not provided.
+Must be one of the values from 'imap-streams'.
+If nil, detected automatically.")
+
+(defvar om-dash-imap-auth nil
+  "Default AUTH parameter for 'imap-open'.
+
+Used by 'om-dash-imap' if ':auth' parameter is not provided.
+Must be one of the values from 'imap-authenticators'.
+If nil, detected automatically.")
+
+(defvar om-dash-imap-empty-folders nil
+  "Whether to display empty IMAP folders.
+If nil, empty folders are excluded from the table.")
+
 (defvar om-dash-verbose nil
   "Enable verbose logging.
 If non-nill, all commands and queries are logged to '*om-dash*' buffer.")
@@ -366,6 +440,21 @@ You can use it so specify cell font."
   "Face used for 'CLOSED' keyword in om-dash tables."
    :group 'om-dash-faces)
 
+(defface om-dash-new-keyword
+  '((t (:inherit org-todo :weight normal)))
+  "Face used for 'NEW' keyword in om-dash tables."
+  :group 'om-dash-faces)
+
+(defface om-dash-unread-keyword
+  '((t (:inherit org-todo :weight normal)))
+  "Face used for 'UNREAD' keyword in om-dash tables."
+   :group 'om-dash-faces)
+
+(defface om-dash-clean-keyword
+  '((t (:inherit org-done :weight normal)))
+  "Face used for 'CLEAN' keyword in om-dash tables."
+   :group 'om-dash-faces)
+
 (defun om-dash--todo-keywords ()
   "Get list of TODO keywords."
   (unless om-dash-todo-keywords
@@ -375,7 +464,10 @@ You can use it so specify cell font."
                                  (seq-difference org-todo-keywords-1
                                                  org-done-keywords)
                                  ;; github
-                                 (list "OPEN"))))
+                                 (list "OPEN")
+                                 ;; imap
+                                 (list "NEW"
+                                       "UNREAD"))))
   om-dash-todo-keywords)
 
 (defun om-dash--done-keywords ()
@@ -387,7 +479,9 @@ You can use it so specify cell font."
                                  org-done-keywords
                                  ;; github
                                  (list "MERGED"
-                                       "CLOSED"))))
+                                       "CLOSED")
+                                 ;; imap
+                                 (list "CLEAN"))))
   om-dash-done-keywords)
 
 (defun om-dash--choose-keyword (is-todo)
@@ -1482,6 +1576,173 @@ is a format string where '%s' is title of the top-level entry.
         (om-dash--insert-table columns (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
 
+(defun om-dash--imap-folder-stats (host port machine user password stream auth folder)
+  "Connect to IMAP server and read stats for a folder tree."
+  (let ((parent-folder (if (s-present-p folder)
+                           (downcase folder)
+                         nil))
+        folder-stats)
+    (unless (and (s-present-p user)
+                 (s-present-p password))
+      (om-dash--log (format "reading imap credentials from ~/.authinfo for machine \"%s\""
+                            machine))
+      (let* ((machine (if (s-present-p machine)
+                          machine
+                        host))
+             (credentials (netrc-credentials machine)))
+        (unless credentials
+          (error "om-dash: machine %s not found in ~/.authinfo" machine))
+        (unless (s-present-p user)
+          (setq user (nth 0 credentials)))
+        (unless (s-present-p password)
+          (setq password (nth 1 credentials)))))
+    (om-dash--log
+     (format "connecting to imap server: server \"%s:%s\" user \"%s\" stream \"%s\" auth \"%s\""
+             host port user stream auth))
+    (with-current-buffer (imap-open host port stream auth)
+      (imap-authenticate user password)
+      (dolist (folder (imap-mailbox-list (s-concat parent-folder "*")))
+        (when (or (not parent-folder)
+                  (s-equals-p parent-folder folder)
+                  (s-starts-with-p (s-concat parent-folder "/") folder))
+          (om-dash--log (format "inspecting imap folder %s"
+                                folder))
+          (imap-mailbox-select folder)
+          (let* ((total-count (length (imap-search "ALL")))
+                 (new-count (length (imap-search "NEW")))
+                 (unread-count (length (imap-search "UNSEEN")))
+                 (state (cond ((> new-count 0) "NEW")
+                              ((> unread-count 0) "UNREAD")
+                              (t "CLEAN"))))
+            (push (list :folder folder
+                        :state state
+                        :total total-count
+                        :new new-count
+                        :unread unread-count)
+                  folder-stats)))))
+    (sort folder-stats
+          (lambda (a b)
+            (s-less-p (plist-get a :folder)
+                      (plist-get b :folder))))))
+
+(defun org-dblock-write:om-dash-imap (params)
+  "Builds org heading with a table of IMAP folder(s) and their unread mail counters.
+
+Usage example:
+  #+BEGIN: om-dash-imap :folder \"foo/bar\"
+  ...
+  #+END:
+
+| parameter      | default                                | description                     |
+|----------------+----------------------------------------+---------------------------------|
+| :host          | 'om-dash-imap-host'                    | IMAP server hostmame            |
+| :port          | 'om-dash-imap-port' or default         | IMAP server port                |
+| :machine       | 'om-dash-imap-machine' or host         | ~/.authinfo machine             |
+| :user          | 'om-dash-imap-user' or ~/.authinfo     | IMAP username                   |
+| :password      | 'om-dash-imap-password' or ~/.authinfo | IMAP password                   |
+| :stream        | 'om-dash-imap-stream' or auto          | STREAM for imap-open            |
+| :auth          | 'om-dash-imap-auth' or auto            | AUTH for imap-open              |
+| :table-columns | 'om-dash-imap-columns'                 | list of columns to display      |
+| :headline      | auto                                   | text for generated org heading  |
+| :heading-level | auto                                   | level for generated org heading |
+
+':host' and ':port' define IMAP server address.
+Host must be always set, and port is optional.
+
+':user' and ':password' define IMAP credentials.
+If not set, 'om-dash-imap' will read them from ~/.authinfo.
+If ':machine' is set, it's used to search ~/.authinfo, otherwise host is used.
+
+':stream' and ':auth' may be used to force 'imap-open' to use specific
+connection and authentification types. For example, you can use 'network'
+and 'login' values to force plain-text unencrypted password.
+
+All these parameters have corresponding variables (e.g. 'om-dash-imap-host'
+for ':host') which are used if paremeter is omitted. Value is considered
+unset when both parameter is omitted and variable is nil.
+"
+  ;; expand template
+  (setq params
+        (om-dash--expand-template params))
+  ;; parse params
+  (let* ((host (or (plist-get params :host)
+                   om-dash-imap-host
+                   (error "om-dash: missing :host or om-dash-imap-host")))
+         (port (or (plist-get params :port)
+                   om-dash-imap-port))
+         (machine (or (plist-get params :machine)
+                      om-dash-imap-machine))
+         (user (or (plist-get params :user)
+                   om-dash-imap-user))
+         (password (or (plist-get params :password)
+                       om-dash-imap-password))
+         (stream (or (plist-get params :stream)
+                     om-dash-imap-stream))
+         (auth (or (plist-get params :auth)
+                   om-dash-imap-auth))
+         (folder (or (plist-get params :folder)
+                     (error "om-dash: missing :folder")))
+         (table-columns (or (plist-get params :table-columns)
+                            om-dash-imap-columns))
+         (headline (or (plist-get params :headline)
+                       (format "emails (%s)" folder)))
+         (heading-level (or (plist-get params :heading-level)
+                            (om-dash--choose-level))))
+    ;; get stats and format table
+    (let* ((columns
+            (seq-map (lambda (col)
+                       (cond ((eq col :state) "state")
+                             ((eq col :new) "new")
+                             ((eq col :unread) "unread")
+                             ((eq col :total) "total")
+                             ((eq col :folder) "folder")
+                             (t (error
+                                 "om-dash: unknown table column %S"
+                                 col))))
+                     table-columns))
+           (entries
+            (om-dash--imap-folder-stats host port machine user password stream auth folder))
+           (todo-p
+            (seq-count (lambda (entry)
+                         (not (string= (plist-get entry :state)
+                                       "CLEAN")))
+                       entries))
+           table)
+      (dolist (entry entries)
+        (let* ((state (plist-get entry :state))
+               (new (plist-get entry :new))
+               (unread (plist-get entry :unread))
+               (total (plist-get entry :total))
+               (folder (plist-get entry :folder)))
+          (when (or om-dash-imap-empty-folders
+                    (> total 0))
+            (push
+             (seq-map (lambda (col)
+                        (cond ((eq col :state)
+                               (make-om-dash--cell :text state))
+                              ((eq col :new)
+                               (make-om-dash--cell :text (number-to-string
+                                                          new)))
+                              ((eq col :unread)
+                               (make-om-dash--cell :text (number-to-string
+                                                          unread)))
+                              ((eq col :total)
+                               (make-om-dash--cell :text (number-to-string
+                                                          total)))
+                              ((eq col :folder)
+                               (make-om-dash--cell :text folder))
+                              (t (error
+                                  "om-dash: unknown table column %S"
+                                  col))))
+                      table-columns)
+             table))))
+      (om-dash--insert-heading (om-dash--choose-keyword todo-p)
+                               headline
+                               heading-level)
+      (when table
+        (om-dash--insert-table columns (nreverse table) heading-level))
+      (om-dash--remove-empty-line))))
+
 (defun org-dblock-write:om-dash--readme-toc (params)
   "Dynamic block to insert table of contents into README."
   (let* ((file (buffer-file-name))
@@ -1547,10 +1808,10 @@ is a format string where '%s' is title of the top-level entry.
                       (forward-line))
                   (progn
                     ;; otherwise, assume it's a code block
-                    (insert "#+begin_example\n")
+                    (insert "#+BEGIN_EXAMPLE\n")
                     (while (looking-at "^  ")
                       (forward-line))
-                    (insert "#+end_example\n")))))
+                    (insert "#+END_EXAMPLE\n")))))
             ;; re-align tables
             (save-excursion
               (goto-char (point-min))
@@ -1566,11 +1827,11 @@ is a format string where '%s' is title of the top-level entry.
 
 E.g., for the following document:
 
-  * 1.                  o
+  * 1.               ---o
   ** 1.1    <- cursor   |
   *** 1.1.1             | [tree]
   *** 1.1.2             |
-  ** 1.2                o
+  ** 1.2             ---o
   * 2.
   ** 2.1
 
@@ -1586,9 +1847,9 @@ the function updates all blocks inside 1., 1.1, 1.1.1, 1.1.2, 1.2."
 E.g., for the following document:
 
   * 1.
-  ** 1.1    <- cursor   o
+  ** 1.1    <- cursor --o
   *** 1.1.1             | [subtree]
-  *** 1.1.2             o
+  *** 1.1.2           --o
   ** 1.2
   * 2.
   ** 2.1
@@ -1774,7 +2035,7 @@ After editing keywords list, you need to reactivate minor mode for
 changes to take effect.
 
 To active this mode automatically for specific files, you can use
-local variables (add this to the end of file):
+local variables (add this to the end of the file):
 
   # Local Variables:
   # eval: (om-dash-mode 1)
