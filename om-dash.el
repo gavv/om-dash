@@ -813,6 +813,12 @@ You can use it so specify cell font."
                 table))))
     (nreverse table)))
 
+(defun om-dash--parse-link (link)
+  "Parse org-mode link."
+  (if (string-match org-link-bracket-re (s-trim link))
+      (cons (match-string 1 link) (match-string 2 link))
+    nil))
+
 (defun org-dblock-write:om-dash-command (params)
   "Builds org heading with a table from output of a shell command.
 
@@ -866,6 +872,87 @@ from https://github.com/mrc/el-csv
       (when table
         (om-dash--insert-table columns table heading-level))
       (om-dash--remove-empty-line))))
+
+(defun org-dblock-write:om-dash-function (params)
+  "Builds org heading with a table from output of a elisp function.
+
+Usage example:
+  #+BEGIN: om-dash-function :fun example-func
+  ...
+  #+END:
+
+| parameter      | default  | description                     |
+|----------------+----------+---------------------------------|
+| :function      | required | elisp function to call          |
+| :args          | nil      | optional function arguments     |
+| :headline      | auto     | text for generated org heading  |
+| :heading-level | auto     | level for generated org heading |
+
+The function should return a list of tables, where each table is
+a 'plist' with the following properties:
+
+| property      | default  | description                                          |
+|---------------+----------+------------------------------------------------------|
+| :keyword      | 'TODO'   | keyword for generated org heading                    |
+| :headline     | auto     | text for generated org heading                       |
+| :level        | auto     | level for generated org heading                      |
+| :column-names | required | list of column names (strings)                       |
+| :rows         | required | list of rows, where row is a list of cells (strings) |
+
+If ':headline' or ':heading-level' is provided as the block parameter, it overrides
+':headline' or ':level' returned from function.
+
+Example function that returns a single 2x2 table:
+
+  (defun example-func ()
+    ;; list of tables
+    (list
+     ;; table plist
+     (list :keyword \"TODO\"
+           :headline \"example table\"
+           :column-names '(\"foo\" \"bar\")
+           :rows '((\"a\" \"b\")
+                   (\"c\" \"d\")))))
+"
+  ;; expand template
+  (setq params
+        (om-dash--expand-template params))
+  ;; parse params
+  (let* ((function (or (plist-get params :fun)
+                       (error "om-dash: missing :fun")))
+         (args (plist-get params :args))
+         (default-keyword (om-dash--choose-keyword nil))
+         (forced-headline (or (plist-get params :headline)
+                              (symbol-name function)))
+         (forced-level (or (plist-get params :heading-level)
+                           (om-dash--choose-level))))
+    ;; run function and build table
+    (dolist (table-plist (apply function args))
+      (let* ((keyword (or (plist-get table-plist :keyword)
+                          default-keyword))
+             (headline (or forced-headline
+                           (plist-get table-plist :headline)))
+             (heading-level (or forced-level
+                                (plist-get table-plist :level)))
+             (column-names (or (plist-get table-plist :column-names)
+                               (error "om-dash: missing :column-names")))
+             (rows (or (plist-get table-plist :rows)
+                       (error "om-dash: missing :rows")))
+             table)
+        (dolist (row rows)
+          (push
+           (seq-map (lambda (cell-text)
+                      (if-let ((link (om-dash--parse-link cell-text)))
+                          (make-om-dash--cell :text (car link) :link (cdr link))
+                        (make-om-dash--cell :text cell-text)))
+                    row)
+           table))
+        (om-dash--insert-heading keyword
+                                 headline
+                                 heading-level)
+        (when table
+          (om-dash--insert-table column-names (nreverse table) heading-level))
+        (om-dash--remove-empty-line)))))
 
 (defun om-dash--gh-headline (type)
   "Get name for github type."
@@ -1258,7 +1345,8 @@ Parameters:
 | :headline      | auto     | text for generated org heading         |
 | :heading-level | auto     | level for generated org heading        |
 
-Any other parameter is not used by template and passed to 'om-dash-github-topics' as-is."
+Any other parameter is not used by template and passed to 'om-dash-github-topics' as-is.
+"
   ;; parse params
   (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
          (type (or (plist-get params :type) (error "om-dash: missing :type")))
@@ -1312,7 +1400,8 @@ Parameters:
 | :headline      | auto     | text for generated org heading                           |
 | :heading-level | auto     | level for generated org heading                          |
 
-Any other parameter is not used by template and passed to 'om-dash-github-topics' as-is."
+Any other parameter is not used by template and passed to 'om-dash-github-topics' as-is.
+"
   (om-dash-github--classic-project-cards-query
    params))
 

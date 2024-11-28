@@ -25,13 +25,14 @@ It was always a struggle to me to keep track of the "big picture" when I'm hoppi
 
 I wanted a tool that can give me a brief summary of all ongoing projects: what's done, what's next, and what requires attention. And then I realized that it can be easily implemented using org-mode, so here we go.
 
-Currently om-dash implementats a few configurable dynamic blocks:
+om-dash implementats a few configurable dynamic blocks:
 
 - =om-dash-github-topics= - generates a table with issues or pull requests from github repository
 - =om-dash-github-project-cards= - generates a table with cards from github classic project
 - =om-dash-orgfile= - generates tables with top-level entries from an org file
 - =om-dash-imap= - generates table with unread email counters for IMAP folder
 - =om-dash-command= - generates a table from JSON or CSV output of a shell command
+- =om-dash-function= - generates a table from output of a Elisp function
 
 The package also provides a minor mode (=om-dash-mode=) to apply color highlighting to the generated tables.
 
@@ -563,6 +564,53 @@ of CSV becomes value of first column from =:columns=, and so on.
 
 Note: using CSV format requires installing =parse-csv= package
 from https://github.com/mrc/el-csv
+#+END:
+
+#+BEGIN: om-dash--readme-symbol :symbol org-dblock-write:om-dash-function
+*** om-dash-function
+Builds org heading with a table from output of a elisp function.
+
+Usage example:
+#+BEGIN_EXAMPLE
+  ,#+BEGIN: om-dash-function :fun example-func
+  ...
+  ,#+END:
+#+END_EXAMPLE
+
+| parameter      | default  | description                     |
+|----------------+----------+---------------------------------|
+| :function      | required | elisp function to call          |
+| :args          | nil      | optional function arguments     |
+| :headline      | auto     | text for generated org heading  |
+| :heading-level | auto     | level for generated org heading |
+
+The function should return a list of tables, where each table is
+a =plist= with the following properties:
+
+| property      | default  | description                                          |
+|---------------+----------+------------------------------------------------------|
+| :keyword      | =TODO=   | keyword for generated org heading                    |
+| :headline     | auto     | text for generated org heading                       |
+| :level        | auto     | level for generated org heading                      |
+| :column-names | required | list of column names (strings)                       |
+| :rows         | required | list of rows, where row is a list of cells (strings) |
+
+If =:headline= or =:heading-level= is provided as the block parameter, it overrides
+=:headline= or =:level= returned from function.
+
+Example function that returns a single 2x2 table:
+
+#+BEGIN_EXAMPLE
+  (defun example-func ()
+    ;; list of tables
+    (list
+     ;; table plist
+     (list :keyword "TODO"
+           :headline "example table"
+           :column-names '("foo" "bar")
+           :rows '(("a" "b")
+                   ("c" "d")))))
+#+END_EXAMPLE
 #+END:
 
 ** Templates
