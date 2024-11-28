@@ -25,15 +25,24 @@
 ;; om-dash implements a set of dynamic blocks for org-mode that you can use
 ;; to compose a custom dashboard for your projects.
 
-;; Currently om-dash implementats three configurable dynamic blocks:
-;; - om-dash-github  - generates a table with github issues or pull requests
-;; - om-dash-orgfile - generates tables with top-level entries from org file
-;; - om-dash-command - generates a table from the output of a shell command
+;; The following dynamic blocks are available:
+;; * om-dash-github-topics
+;;   generates a table with issues or pull requests from github repository
+;; * om-dash-github-project-cards
+;;   generates a table with cards from github classic project
+;; * om-dash-orgfile
+;;   generates tables with top-level entries from an org file
+;; * om-dash-imap
+;;   generates table with unread email counters for IMAP folder
+;; * om-dash-command
+;;   generates a table from JSON or CSV output of a shell command
+;; * om-dash-function
+;;   generates a table from output of a Elisp function
 
-;; It also provides a minor mode (om-dash-mode) that applies highlighting to
-;; the generated tables.
+;; The package also provides a minor mode (om-dash-mode) that applies
+;; highlighting to the generated tables.
 
-;; In addition, there is support for templates, which allows to create
+;; In addition, there is support for templates, which allow to create
 ;; reusable parameterized configurations of the above blocks.
 
 ;; Refer to README.org for examples and screenshots.
@@ -106,9 +115,8 @@ You can map tag name to a different string or to nil to hide it.")
 
 (defvar om-dash-templates
   '(
+    ;; OBSOLETE templates:
     (milestone . om-dash-github:milestone)
-    (assignee . om-dash-github:assignee)
-    ;; [deprecated]
     (project-column . om-dash-github:project-column)
     )
   "Assoc list of expandable templates for om-dash dynamic blocks.
@@ -123,21 +131,23 @@ return a new plist. The new plist is used to update the original
 parameters by appending new values and overwriting existing values.
 
 For example, if 'org-dblock-write:om-dash-github-topics' block has parameters:
-  (:template milestone
-   :repo \"owner/repo\"
+  (:repo \"owner/repo\"
    :type 'issue
-   :milestone \"1.2.3\")
+   :template project-column
+   :project 123
+   :column \"In progress\")
 
-Dynamic block will use 'milestone' as a key in 'om-dash-templates'
-and find 'om-dash-github:milestone' function.
+Dynamic block will use 'project-column' as a key in 'om-dash-templates'
+and find 'om-dash-github:project-column' function.
 
 The function is invoked with the original parameter list, and returns
 a modified parameter list:
   (:repo \"owner/repo\"
    :type 'issue
-   :headline \"issues (owner/repo \\\"1.2.3\\\")\"
-   :open \"milestone:\\\"1.2.3\\\"\"
-   :closed \"\")
+   :open (\"project:owner/repo/123\"
+          \".projectCards[] | (.column.name == \\\"In progress\\\")\")
+   :closed \"\"
+   :headline \"issues (owner/repo \\\"1.2.3\\\")\")
 
 Then modified parameters are interpreted by dynamic block as usual.")
 
@@ -459,6 +469,57 @@ You can use it so specify cell font."
   "Face used for 'CLEAN' keyword in om-dash tables."
    :group 'om-dash-faces)
 
+(defun om-dash--log (msg)
+  "Log line to *om-dash* buffer"
+  (if om-dash-verbose
+      (with-current-buffer (get-buffer-create "*om-dash*")
+        (goto-char (point-max))
+        (insert ">>> ")
+        (insert msg)
+        (insert "\n"))))
+
+(defun om-dash--canon-type (type)
+  "Map type to canonical form."
+  (cond ((eq type 'pr)
+         (warn "'pr is deprecated, use 'pullreq instead")
+         'pullreq)
+        (t type)))
+
+(defun om-dash--kwlistp (object)
+  "Check if object is keyworded plist, like (:key1 val key2 val ...)."
+  (and object
+       (proper-list-p object)
+       (> (length object) 0)
+       (keywordp (car object))))
+
+(defun om-dash--contains-p (list &rest elems)
+  "Check if list has any of the elements."
+  (seq-some (lambda (e)
+              (seq-contains list e 'string=))
+            elems))
+
+(defun om-dash--join (separator &rest strings-or-lists)
+  "Concatenate all strings and lists of strings into one flatten list.
+Remove nils and empty strings.
+Join resulting list into one string using a separator and return result."
+  (when-let ((seq
+              (seq-remove
+               's-blank-p
+               (apply 'seq-concatenate 'list
+                      (seq-map (lambda (elem)
+                                 (if (listp elem)
+                                     elem
+                                   (list elem)))
+                               strings-or-lists)))))
+    (s-join separator seq)))
+
+(defun om-dash--in-dblock-p ()
+  (let ((case-fold-search t))
+    (org-between-regexps-p "^[ \t]*#\\+BEGIN:"
+                           "^[ \t]*#\\+END:"
+                           (point-min)
+                           (point-max))))
+
 (defun om-dash--todo-keywords ()
   "Get list of TODO keywords."
   (unless om-dash-todo-keywords
@@ -527,28 +588,6 @@ You can use it so specify cell font."
     (while (om-dash--in-dblock-p)
       (org-previous-visible-heading 1))
     (1+ (org-outline-level))))
-
-(defun om-dash--in-dblock-p ()
-  (let ((case-fold-search t))
-    (org-between-regexps-p "^[ \t]*#\\+BEGIN:"
-                           "^[ \t]*#\\+END:"
-                           (point-min)
-                           (point-max))))
-
-(defun om-dash--log (msg)
-  "Log line to *om-dash* buffer"
-  (if om-dash-verbose
-      (with-current-buffer (get-buffer-create "*om-dash*")
-        (goto-char (point-max))
-        (insert ">>> ")
-        (insert msg)
-        (insert "\n"))))
-
-(defun om-dash--canon-type (type)
-  (cond ((eq type 'pr)
-         (warn "'pr is deprecated, use 'pullreq instead")
-         'pullreq)
-        (t type)))
 
 (cl-defstruct om-dash--cell
   "Struct that represents single table cell."
@@ -823,6 +862,28 @@ You can use it so specify cell font."
       (cons (match-string 1 link) (match-string 2 link))
     nil))
 
+(defun om-dash--parse-reltime (str)
+  "Parse relative timestamp like -123d."
+  (when (string-match "^-\\([[:digit:]]+\\)\\([a-z][a-z]?\\)$" str)
+    (let ((count (string-to-number (match-string 1 str)))
+          (unit (match-string 2 str)))
+      (ts-format "%Y-%m-%d"
+                 (cond
+                  ;; "-123d"
+                  ((string= unit "d")
+                   (ts-adjust 'day (- count) (ts-now)))
+                  ;; "-123w"
+                  ((string= unit "w")
+                   (ts-adjust 'day (- (* count 7)) (ts-now)))
+                  ;; "-123mo"
+                  ((string= unit "mo")
+                   (ts-adjust 'month (- count) (ts-now)))
+                  ;; "-123y"
+                  ((string= unit "y")
+                   (ts-adjust 'year (- count) (ts-now)))
+                  (t
+                   (error "om-dash: bad timestamp %S" str)))))))
+
 (defun org-dblock-write:om-dash-command (params)
   "Builds org heading with a table from output of a shell command.
 
@@ -864,12 +925,10 @@ from https://github.com/mrc/el-csv
                             (om-dash--choose-level))))
     ;; run command
     (let* ((raw-output (om-dash--shell-run command t))
-           (table (cond ((eq format 'json)
-                         (om-dash--parse-json columns raw-output))
-                        ((eq format 'csv)
-                         (om-dash--parse-csv columns raw-output))
-                        (t
-                         (error "om-dash: bad :format %S" format))))
+           (table (pcase format
+                    (`json (om-dash--parse-json columns raw-output))
+                    (`csv (om-dash--parse-csv columns raw-output))
+                    (_ (error "om-dash: bad :format %S" format))))
            (is-todo (om-dash--table-todo-p table)))
       (om-dash--insert-heading (om-dash--choose-keyword is-todo)
                                headline heading-level)
@@ -958,15 +1017,7 @@ Example function that returns a single 2x2 table:
           (om-dash--insert-table column-names (nreverse table) heading-level))
         (om-dash--remove-empty-line)))))
 
-(defun om-dash--gh-headline (type)
-  "Get name for github type."
-  (let ((type (om-dash--canon-type type)))
-    (cond ((eq type 'issue) "issues")
-          ((eq type 'pullreq) "pull requests")
-          ((eq type 'any) "issues and pull requests")
-          (t (error "om-dash: bad type %S" type)))))
-
-(defun om-dash--gh-quote (str)
+(defun om-dash--gh-quote-arg (str)
   "Quote argument of github query search term."
   (s-replace "\"" "\\\""
              (s-replace "\\" "\\\\" str)))
@@ -983,7 +1034,7 @@ Example function that returns a single 2x2 table:
                 type)))
     (cdr (assoc key field-map))))
 
-(defun om-dash--gh-fields (type selector fields)
+(defun om-dash--gh-build-fields-arg (type selector fields)
   "Construct fields list for gh command."
   ;; if user didn't provide :fields, construct them automatically
   (unless fields
@@ -1000,42 +1051,25 @@ Example function that returns a single 2x2 table:
                     (append fields (list field)))))))
   (seq-uniq fields))
 
-(defun om-dash--gh-query (state query)
+(defun om-dash--gh-build-search-arg (state query)
   "Construct query for gh --search option."
   (let ((sub-queries
-         (list
-          (cond ((eq state 'any) "state:open state:closed")
-                ((eq state 'open) "state:open")
-                ((eq state 'closed) "-state:open")
-                (t (error "om-dash: bad state %S" state)))
-          (cond
-           ;; "*"
-           ((string= "*" query) "")
-           ;; "-123d"
-           ((string-match "^-\\([[:digit:]]+\\)\\([a-z][a-z]?\\)$" query)
-            (let ((count (string-to-number (match-string 1 query)))
-                  (unit (match-string 2 query)))
-              (ts-format "updated:>%Y-%m-%d"
-                         (cond
-                          ;; "-123d"
-                          ((string= unit "d")
-                           (ts-adjust 'day (- count) (ts-now)))
-                          ;; "-123w"
-                          ((string= unit "w")
-                           (ts-adjust 'day (- (* count 7)) (ts-now)))
-                          ;; "-123mo"
-                          ((string= unit "mo")
-                           (ts-adjust 'month (- count) (ts-now)))
-                          ;; "-123y"
-                          ((string= unit "y")
-                           (ts-adjust 'year (- count) (ts-now)))
-                          (t
-                           (error "om-dash: bad query %S" query))))))
-           ;; passthrough
-           (t query)))))
+         (list (pcase state
+                 (`any "state:open state:closed")
+                 (`open "state:open")
+                 (`closed "-state:open")
+                 (_ (error "om-dash: bad state %S" state)))
+               (cond
+                ;; "*"
+                ((string= "*" query) "")
+                ;; "-123d"
+                ((when-let ((timestamp (om-dash--parse-reltime query)))
+                   (format "updated:>=%s" timestamp)))
+                ;; passthrough
+                (t query)))))
     (s-join " " (seq-remove 's-blank-p sub-queries))))
 
-(defun om-dash--gh-command (repo type state filter fields limit)
+(defun om-dash--gh-build-command (repo type state filter fields limit)
   "Construct gh command."
   (let ((type (om-dash--canon-type type))
         (query (car filter))
@@ -1043,12 +1077,13 @@ Example function that returns a single 2x2 table:
         command)
     (when (s-present-p query)
       (let ((fields
-             (s-join "," (om-dash--gh-fields type selector fields)))
-            (subcmd (cond ((eq type 'pullreq) "pr")
-                          ((eq type 'issue) "issue")
-                          (t (error "om-dash: bad :type %S" type))))
+             (s-join "," (om-dash--gh-build-fields-arg type selector fields)))
+            (subcmd (pcase type
+                      (`pullreq "pr")
+                      (`issue "issue")
+                      (_ (error "om-dash: bad :type %S" type))))
             (search
-             (om-dash--gh-query state query)))
+             (om-dash--gh-build-search-arg state query)))
         (setq command (format
                        "gh %s -R %s list --json %s --search %s --limit %s"
                        subcmd
@@ -1064,7 +1099,7 @@ Example function that returns a single 2x2 table:
                                 (om-dash--shell-quote expr)))))
       command)))
 
-(defun om-dash--jq-command (input-files sort-by)
+(defun om-dash--jq-build-command (input-files sort-by)
   "Construct jq command that joins and sorts output of gh commands."
   (let* ((merge-expr
           (s-join " + " (seq-map
@@ -1078,9 +1113,9 @@ Example function that returns a single 2x2 table:
             (om-dash--shell-quote expr)
             (s-join " " (seq-map 'om-dash--shell-quote input-files)))))
 
-(defun om-dash--github-run (repo type any-filter open-filter closed-filter
-                                 sort-by fields limit)
-  "Construct and run command for om-dash-github-*."
+(defun om-dash--github-read-topics (repo type any-filter open-filter closed-filter
+                                         sort-by fields limit)
+  "Construct and run command for om-dash-github-topics."
   (let* ((gh-types
           (if (eq type 'any) (list 'pullreq 'issue)
             (list type)))
@@ -1090,18 +1125,18 @@ Example function that returns a single 2x2 table:
                              (seq-map
                               (lambda (type)
                                 (list
-                                 (om-dash--gh-command ;  :any
+                                 (om-dash--gh-build-command ;  :any
                                   repo type 'any any-filter fields limit)
-                                 (om-dash--gh-command ;  :open
+                                 (om-dash--gh-build-command ;  :open
                                   repo type 'open open-filter fields limit)
-                                 (om-dash--gh-command ;  :closed
+                                 (om-dash--gh-build-command ;  :closed
                                   repo type 'closed closed-filter fields limit)))
                               gh-types))))
          (gh-outputs
           (seq-map (lambda (cmd) (make-temp-file "om-dash-"))
                    gh-commands))
          (jq-command
-          (om-dash--jq-command gh-outputs sort-by)))
+          (om-dash--jq-build-command gh-outputs sort-by)))
     (unwind-protect
         (progn
           ;; run gh commands, save output to temp files
@@ -1117,6 +1152,502 @@ Example function that returns a single 2x2 table:
       (dolist (out gh-outputs)
         (delete-file out)))))
 
+(defun om-dash--github-q-timestamp (params)
+  "Build queries for :created-at, :updated-at, :closed-at"
+  (let* ((created-at (plist-get params :created-at))
+         (updated-at (plist-get params :updated-at))
+         (closed-at (plist-get params :closed-at))
+         (gh-query
+          (om-dash--join
+           ;; note: space-separated "created:", "updated:", and "closed:"
+           ;;       github queries are ANDed
+           " " (cl-mapcar
+                (lambda (name query)
+                  (cond
+                   ;; string, e.g. "2024-02-20" or "-100d"
+                   ((stringp query)
+                    (let ((timestamp (or (om-dash--parse-reltime query)
+                                         query)))
+                      (format "%s:%s" name timestamp)))
+                   ;; 2-element list, e.g. (> "2024-02-20")
+                   ((and (listp query) (eq (length query) 2))
+                    (let ((operator (nth 0 query))
+                          (timestamp (or (om-dash--parse-reltime (nth 1 query))
+                                         (nth 1 query))))
+                      (pcase operator
+                        (`> (format "%s:>%s" name timestamp))
+                        (`>= (format "%s:>=%s" name timestamp))
+                        (`< (format "%s:<%s" name timestamp))
+                        (`<= (format "%s:<=%s" name timestamp))
+                        (_ (error "om-dash: bad :%s-at" name)))))
+                   ;; 3-element list, e.g. (range "2024-01-01" "2024-02-20")
+                   ((and (listp query) (eq (length query) 3))
+                    (let ((operator (nth 0 query))
+                          (timestamp-1 (or (om-dash--parse-reltime (nth 1 query))
+                                           (nth 1 query)))
+                          (timestamp-2 (or (om-dash--parse-reltime (nth 2 query))
+                                           (nth 2 query))))
+                      (pcase operator
+                        (`range (format "%s:%s..%s" name timestamp-1 timestamp-2))
+                        (_ (error "om-dash: bad :%s-at" name)))))
+                   ;; not given
+                   ((not query)
+                    nil)
+                   ;; unrecognized
+                   (t
+                    (error "om-dash: bad :%s-at" name))))
+                (list "created" "updated" "closed")
+                (list created-at updated-at closed-at)))))
+    (list gh-query nil)))
+
+(defun om-dash--github-q-milestone (params)
+  "Build queries for :milestone and :no-milestone"
+  (let* ((match-list (if-let ((param (plist-get params :milestone)))
+                         (cond ((listp param) param)
+                               ((stringp param) (list param))
+                               (t (error "om-dash: bad :milestone parameter %S" param)))))
+         (ignore-list (if-let ((param (plist-get params :no-milestone)))
+                          (cond ((listp param) param)
+                                ((stringp param) (list param))
+                                (t (error "om-dash: bad :no-milestone parameter %S" param)))))
+         (gh-query
+          ;; :milestone
+          ;; note: github doesn't support multiple "milestone:" queries,
+          ;;       hence this case is handled in jq below
+          (when (eq (length match-list) 1)
+            (pcase (car match-list)
+              ;; only include topics with non-empty milestone
+              ("*" "milestone:*")
+              ;; only include topics with empty milestone
+              ("-" "no:milestone")
+              ;; only include topics with specified milestone
+              (_ (format "milestone:\"%s\""
+                         (om-dash--gh-quote-arg (car match-list)))))))
+         (jq-selector
+          (om-dash--join
+           " and "
+           ;; :milestone
+           (when (> (length match-list) 1)
+             (format "(%s)"
+                     (om-dash--join
+                      " or "
+                      (seq-map
+                       (lambda (elem)
+                         (pcase elem
+                           ;; only include topics with non-empty milestone
+                           ("*" "(.milestone != null)")
+                           ;; only include topics with empty milestone
+                           ("-" "(.milestone == null)")
+                           ;; only include topics with specified milestone
+                           (_ (format "(.milestone.title == \"%s\")"
+                                      (om-dash--gh-quote-arg elem)))))
+                       match-list))))
+           ;; :no-milestone
+           (seq-map
+            (lambda (elem)
+              (pcase elem
+                ;; exclude topics with non-empty milestone
+                ("*" "(.milestone == null)")
+                ;; exclude topics with empty milestone
+                ("-" "(.milestone != null)")
+                ;; exclude topics with specified milestone
+                (_ (format "(.milestone.title != \"%s\")"
+                           (om-dash--gh-quote-arg elem)))))
+            ignore-list))))
+    (list gh-query jq-selector)))
+
+(defun om-dash--github-q-label (params)
+  "Build queries for :label and :no-label"
+  (let* ((any-list (if-let ((param (plist-get params :label)))
+                       (cond ((listp param) param)
+                             ((stringp param) (list param))
+                             (t (error "om-dash: bad :label parameter %S" param)))))
+         (every-list (if-let ((param (plist-get params :every-label)))
+                         (cond ((listp param) param)
+                               ((stringp param) (list param))
+                               (t (error "om-dash: bad :every-label parameter %S" param)))))
+         (ignore-list (if-let ((param (plist-get params :no-label)))
+                          (cond ((listp param) param)
+                                ((stringp param) (list param))
+                                (t (error "om-dash: bad :no-label parameter %S" param)))))
+         (gh-query
+          (om-dash--join
+           " "
+           ;; :label
+           (when (and any-list
+                      (not (om-dash--contains-p any-list "*" "-")))
+             ;; include topic if it has any of the labels from list
+             ;; note: comma-separated label names inside "label:" query are ORed
+             ;; note: github doesn't support ORing label names with "*" and "-",
+             ;;       so these cases are handled in jq below
+             (format "label:%s"
+                     (om-dash--join
+                      "," (seq-map (lambda (elem)
+                                     (format "\"%s\"" (om-dash--gh-quote-arg elem)))
+                                   any-list))))
+           ;; :every-label
+           ;; note: space-separated "label:" github queries are ANDed
+           (seq-map
+            (lambda (elem)
+              (unless (or (string= elem "*")
+                          (string= elem "-"))
+                ;; include topic if it has all of the labels from list
+                (format "label:\"%s\""
+                        (om-dash--gh-quote-arg elem))))
+            every-list)))
+         (jq-selector
+          (om-dash--join
+           " and "
+           ;; :label
+           (when (and any-list
+                      (om-dash--contains-p any-list "*" "-"))
+             ;; include topic if it has any of the labels from list
+             (format "(%s)"
+                     (om-dash--join
+                      " or "
+                      (seq-map
+                       (lambda (elem)
+                         (pcase elem
+                           ;; match topics with non-empty labels
+                           ("*" "(.labels != [])")
+                           ;; match topics with empty labels
+                           ("-" "(.labels == [])")
+                           ;; match topics with specified label
+                           (_ (format "any(.labels[]; .name == \"%s\")"
+                                      (om-dash--gh-quote-arg elem)))))
+                       any-list))))
+           ;; :every-label
+           (seq-map
+            (lambda (elem)
+              (pcase elem
+                ;; only include topics with non-empty labels
+                ("*" "(.labels != [])")
+                ;; only include topics with empty labels
+                ("-" "(.labels == [])")))
+            every-list)
+           ;; :no-label
+           (seq-map
+            (lambda (elem)
+              (pcase elem
+                ;; exclude topics with non-empty labels
+                ("*" "(.labels == [])")
+                ;; exclude topics with empty labels
+                ("-" "(.labels != [])")
+                ;; exclude topics with specific label
+                (_ (format "all(.labels[]; .name != \"%s\")"
+                           (om-dash--gh-quote-arg elem)))))
+            ignore-list))))
+    (list gh-query jq-selector)))
+
+(defun om-dash--github-q-author (params)
+  "Build queries for :author and :no-author"
+  (let* ((match-list (if-let ((param (plist-get params :author)))
+                         (cond ((listp param) param)
+                               ((stringp param) (list param))
+                               (t (error "om-dash: bad :author parameter %S" param)))))
+         (ignore-list (if-let ((param (plist-get params :no-author)))
+                          (cond ((listp param) param)
+                                ((stringp param) (list param))
+                                (t (error "om-dash: bad :no-author parameter %S" param)))))
+         (gh-query
+          ;; :author
+          ;; note: space-separated "author:" github queries are ORed
+          ;; note: github doesn't support "author:*" and "no:author", so
+          ;;       hence these cases are handled in jq below
+          ;;       (though they are probably impossible in practice)
+          (when (and match-list
+                     (not (om-dash--contains-p match-list "*" "-")))
+            (om-dash--join
+             " " (seq-map
+                  (lambda (elem)
+                    ;; only include topics with specific author
+                    (format "author:\"%s\""
+                            (om-dash--gh-quote-arg elem)))
+                  match-list))))
+         (jq-selector
+          (om-dash--join
+           " and "
+           ;; :author
+           (when (and match-list
+                      (om-dash--contains-p match-list "*" "-"))
+             ;; include topic if it has any of the authors from list
+             (format "(%s)"
+                     (om-dash--join
+                      " or "
+                      (seq-map
+                       (lambda (elem)
+                         (pcase elem
+                           ;; match topics with non-empty author
+                           ("*" "(.author != null)")
+                           ;; match topics with non author
+                           ("-" "(.author == null)")
+                           ;; match topics with specified author
+                           (_ (format "(.author.login == \"%s\")"
+                                      (om-dash--gh-quote-arg elem)))))
+                       match-list))))
+           ;; :no-author
+           (seq-map
+            (lambda (elem)
+              (pcase elem
+                ;; exclude topics with non-empty author
+                ("*" "(.author == null)")
+                ;; exclude topics with empty author
+                ("-" "(.author != null)")
+                ;; exclude topics with specific author
+                (_ (format "(.author.login != \"%s\")"
+                           (om-dash--gh-quote-arg elem)))))
+            ignore-list))))
+    (list gh-query jq-selector)))
+
+(defun om-dash--github-q-assignee (params)
+  "Build queries for :assignee and :no-assignee"
+  (let* ((match-list (if-let ((param (plist-get params :assignee)))
+                         (cond ((listp param) param)
+                               ((stringp param) (list param))
+                               (t (error "om-dash: bad :assignee parameter %S" param)))))
+         (ignore-list (if-let ((param (plist-get params :no-assignee)))
+                          (cond ((listp param) param)
+                                ((stringp param) (list param))
+                                (t (error "om-dash: bad :no-assignee parameter %S" param)))))
+         (gh-query
+          (om-dash--join
+           ;; :assignee
+           ;; note: space-separated "assignee:" github queries are ORed
+           " " (seq-map
+                (lambda (elem)
+                  (pcase elem
+                    ;; only include topics with non-empty assignee
+                    ("*" "assignee:*")
+                    ;; only include topics with empty assignee
+                    ("-" "no:assignee")
+                    ;; only include topics with specified assignee
+                    (_ (format "assignee:\"%s\""
+                               (om-dash--gh-quote-arg elem)))))
+                match-list)))
+         (jq-selector
+          ;; :no-assignee
+          (when ignore-list
+            (om-dash--join
+             " and " (seq-map
+                     (lambda (elem)
+                       (pcase elem
+                         ;; exclude topics with non-empty assignee
+                         ("*" "(.assignees == [])")
+                         ;; exclude topics with empty assignee
+                         ("-" "(.assignees != [])")
+                         ;; exclude topics with specified assignee
+                         (_ (format "all(.assignees[]; .login != \"%s\")"
+                                    (om-dash--gh-quote-arg elem)))))
+                     ignore-list)))))
+    (list gh-query jq-selector)))
+
+(defun om-dash--github-q-reviewer (params)
+  "Build queries for :reviewer and :no-reviewer"
+  (let* ((match-list (if-let ((param (plist-get params :reviewer)))
+                         (cond ((listp param) param)
+                               ((stringp param) (list param))
+                               (t (error "om-dash: bad :reviewer parameter %S" param)))))
+         (ignore-list (if-let ((param (plist-get params :no-reviewer)))
+                          (cond ((listp param) param)
+                                ((stringp param) (list param))
+                                (t (error "om-dash: bad :no-reviewer parameter %S" param)))))
+         (match-expr
+          ;; :reviewer
+          (when match-list
+            (om-dash--join
+             " or " (seq-map
+                     (lambda (elem)
+                       (pcase elem
+                         ;; only include topics with non-empty reviewers
+                         ("*" "(.reviewRequests != [])")
+                         ;; only include topics with empty reviewers
+                         ("-" "(.reviewRequests == [])")
+                         ;; only include topics with specified reviewer
+                         (_ (format "any(.reviewRequests[]; .login == \"%s\")"
+                                    (om-dash--gh-quote-arg elem)))))
+                     match-list))))
+         (ignore-expr
+          ;; :no-reviewer
+          (when ignore-list
+            (om-dash--join
+             " and " (seq-map
+                      (lambda (elem)
+                        (pcase elem
+                          ;; exclude topics with non-empty reviewers
+                          ("*" "(.reviewRequests == [])")
+                          ;; exclude topics with empty reviewers
+                          ("-" "(.reviewRequests != [])")
+                          ;; exclude topics with specified reviewer
+                          (_ (format "all(.reviewRequests[]; .login != \"%s\")"
+                                     (om-dash--gh-quote-arg elem)))))
+                      ignore-list))))
+         (jq-selector
+          (om-dash--join
+           " and " (seq-map (lambda (expr)
+                              (format "(%s)" expr))
+                            (seq-remove 'not
+                                        (list match-expr ignore-expr))))))
+    (list nil jq-selector)))
+
+(defun om-dash--github-q-review-status (params)
+  "Build queries for :review-status and :no-review-status"
+  (let* ((match-list (if-let ((param (plist-get params :review-status)))
+                         (cond ((listp param) param)
+                               ((symbolp param) (list param))
+                               (t (error "om-dash: bad :review-status %S" param)))))
+         (ignore-list (if-let ((param (plist-get params :no-review-status)))
+                          (cond ((listp param) param)
+                                ((symbolp param) (list param))
+                                (t (error "om-dash: bad :no-review-status %S" param)))))
+         ;; 2-element list:
+         ;;   - elem 0: expression list for match-list
+         ;;   - elem 1: expression list for ignore-list
+         (expr-lists
+          (seq-map
+           (lambda (status-list)
+             (seq-map
+              (lambda (status)
+                (pcase status
+                  ;; undecided: no review decision, no review requests, if there are
+                  ;;            reviews, then only in COMMENTED or PENDING states
+                  (`undecided
+                   (s-concat
+                    ".reviewDecision == \"\""
+                    " and "
+                    ".reviewRequests == []"
+                    " and "
+                    "all(.reviews[]; .state | IN(\"COMMENTED\", \"PENDING\"))"))
+                  ;; required: review decision is REVIEW_REQUIRED
+                  (`required
+                   ".reviewDecision == \"REVIEW_REQUIRED\"")
+                  ;; requested: at least one review request
+                  (`requested
+                   ".reviewRequests != []")
+                  ;; commented: at least one review with COMMENTED state
+                  (`commented
+                   "any(.reviews[]; .state == \"COMMENTED\")")
+                  ;; approved: all reviews are either in APPROVED or COMMENTED
+                  ;;           state, and at least one of them is APPROVED
+                  (`approved
+                   (s-concat
+                    "any(.reviews[]; .state == \"APPROVED\")"
+                    " and "
+                    "all(.reviews[]; .state | IN(\"APPROVED\", \"COMMENTED\"))"))
+                  ;; rejected: at least one review in CHANGES_REQUESTED or
+                  ;;           DISMISSED state
+                  (`rejected
+                   "any(.reviews[]; .state | IN(\"CHANGES_REQUESTED\", \"DISMISSED\"))")
+                  (_
+                   (error "om-dash: bad :review-status %S" status))))
+              status-list))
+           (list match-list
+                 ignore-list)))
+         ;; :review-status
+         (match-exprs (car expr-lists))
+         (match-selector
+          (om-dash--join " or "
+                         (seq-map (lambda (expr)
+                                    (format "(%s)" expr))
+                                  (seq-remove 'not
+                                              match-exprs))))
+         ;; :no-review-status
+         (ignore-exprs (cadr expr-lists))
+         (ignore-selector
+          (om-dash--join " and "
+                         (seq-map (lambda (expr)
+                                    (format "((%s) | not)" expr))
+                                  (seq-remove 'not
+                                              ignore-exprs))))
+         ;; combined
+         (jq-selector
+          (om-dash--join " and "
+                         (seq-map (lambda (selector)
+                                    (format "(%s)" selector))
+                                  (seq-remove 'not
+                                              (list match-selector
+                                                    ignore-selector))))))
+    (list nil jq-selector)))
+
+(defun om-dash--github-q-classic-project-column (params)
+  "Build query to fetch cards classic github project."
+  (let* ((repo (plist-get params :repo))
+         (project (if-let ((param (plist-get params :project)))
+                      ;; project may be "<owner>/<repo>/<id>" or just "<id>"
+                      ;; we automatically translate second form to first
+                      (cond ((and (stringp param)
+                                  (s-contains-p "/" param))
+                             param)
+                            (t
+                             (format "%s/%s" repo param)))))
+         (column (plist-get params :column))
+         (gh-query
+          ;; :project
+          (when project
+            ;; only include topics with specified project
+            (format "project:%s"
+                    (om-dash--gh-quote-arg project))))
+         (jq-selector
+          ;; :column
+          (when column
+            ;; only include topics with specified column name
+            (format ".projectCards[] | (.column.name == \"%s\")"
+                    (om-dash--gh-quote-arg column)))))
+    (list gh-query jq-selector)))
+
+(defun om-dash--github-build-query (plist)
+  "Build gh and jq queries from plist."
+  (let* (;; build sub-queries for all supported parameters
+         ;; query-list is a list of pairs (gh-query jq-selector)
+         ;; some elements are nil/blank when corresponding parameters
+         ;; not given, we filter them out below
+         (subquery-list
+          (seq-map (lambda (build-func)
+                     (apply build-func plist nil))
+                   (list
+                    #'om-dash--github-q-timestamp
+                    #'om-dash--github-q-milestone
+                    #'om-dash--github-q-label
+                    #'om-dash--github-q-author
+                    #'om-dash--github-q-assignee
+                    #'om-dash--github-q-reviewer
+                    #'om-dash--github-q-review-status)))
+         ;; join all non-empty github sub-queries
+         (gh-query
+          (let ((query
+                 (s-join " "
+                         (seq-remove 's-blank-p
+                                     (seq-map (lambda (query)
+                                                (nth 0 query))
+                                              subquery-list)))))
+            (if (s-present-p query)
+                query
+              ;; default github query is "*" (fetch all)
+              "*")))
+         ;; join all non-empty jq sub-selectors
+         (jq-selector
+          (let ((selector
+                 (s-join " and "
+                         (seq-map (lambda (expr)
+                                    (format "(%s)" expr))
+                                  (seq-remove 's-blank-p
+                                              (seq-map (lambda (query)
+                                                         (nth 1 query))
+                                                       subquery-list))))))
+            (if (s-present-p selector)
+                selector
+              ;; default jq selector is empty (no filtering)
+              ""))))
+    (list gh-query jq-selector)))
+
+(defun om-dash--github-format-headline (type)
+  "Get headline from github type."
+  (let ((type (om-dash--canon-type type)))
+    (pcase type
+      (`issue "issues")
+      (`pullreq "pull requests")
+      (`any "issues and pull requests")
+      (_ (error "om-dash: bad type %S" type)))))
+
 (define-obsolete-function-alias
   'org-dblock-write:om-dash-github
   'org-dblock-write:om-dash-github-topics "0.3")
@@ -1126,13 +1657,19 @@ Example function that returns a single 2x2 table:
 
 Basic example:
 
-  #+BEGIN: om-dash-github-topics :repo \"octocat/linguist\" :type pullreq :open \"*\" :closed \"-1w\"
+  #+BEGIN: om-dash-github-topics :repo \"owner/repo\" :type issue :open \"*\" :closed \"-1w\"
   ...
   #+END:
 
-More advanced example:
+More complicated query using simple syntax:
 
-  #+BEGIN: om-dash-github-topics :repo \"octocat/hello-world\" :type any :open (\"comments:>2\" \".title | contains(\\\"Hello\\\")\") :sort \"updatedAt\" :limit 100
+  #+BEGIN: om-dash-github-topics :repo \"owner/repo\" :type pullreq :open (:milestone \"1.2.3\" :label \"blocker\" :no-label \"triage\")
+  ...
+  #+END:
+
+Same query but by providing github search query and jq selector:
+
+  #+BEGIN: om-dash-github-topics :repo \"owner/repo\" :type pullreq :open (\"milestone:1.2.3 label:blocker\" \".labels | (.name == \\\"triage\\\") | not\")
   ...
   #+END:
 
@@ -1142,9 +1679,9 @@ Parameters:
 |----------------+--------------------------+----------------------------------------|
 | :repo          | required                 | github repo in form “<owner>/<repo>“   |
 | :type          | required                 | topic type ('issue', 'pullreq', 'any') |
-| :any           | match none (““)          | query for topics in any state          |
-| :open          | match all (“*“)          | query for topics in open state         |
-| :closed        | match none (““)          | query for topics in closed state       |
+| :any           | see below                | query for topics in any state          |
+| :open          | see below                | query for topics in open state         |
+| :closed        | see below                | query for topics in closed state       |
 | :sort          | “createdAt“              | sort results by given field            |
 | :fields        | 'om-dash-github-fields'  | explicitly specify list of fields      |
 | :limit         | 'om-dash-github-limit'   | limit number of results                |
@@ -1152,50 +1689,151 @@ Parameters:
 | :headline      | auto                     | text for generated org heading         |
 | :heading-level | auto                     | level for generated org heading        |
 
-A query for ':any', ':open', and ':closed' can have one of the two forms:
- - \"github-query\"
- - (\"github-query\" \"jq-selector\")
+Parameters ':any', ':open', and ':closed' define 'QUERY' for topics in corresponding
+states. You should specify either ':any' or ':open' and/or ':close'. Not specifying
+anything is equavalent to :open \"*\".
 
-'github-query' is a string using github search syntax:
-https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
+'QUERY' can have one of the following forms:
 
-Besides standard syntax, a few extended forms are supported:
+ - plist: om-dash 'SIMPLE-QUERY', e.g.:
+     (:milestone \"1.2.3\" :no-author \"bob\")
 
-| form     | description                           |
-|----------+---------------------------------------|
-| “*“      | match all                             |
-| “-123d“  | match if updated during last 123 days |
-| “-123w“  | same, but weeks                       |
-| “-123mo“ | same, but months                      |
-| “-123y“  | same, but years                       |
+ - string: standard or extended 'GITHUB-QUERY', e.g.:
+     \"milestone:1.2.3\"
+     \"*\"
+     \"-1w\"
 
-'jq-selector' is an optional selector to filter results using jq command:
-https://jqlang.github.io/jq/
+ - list: two-element list with 'GITHUB-QUERY' and 'JQ-SELECTOR' strings, e.g.:
+     (\"milestone:1.2.3\" \".author.login != \"bob\")
 
-You can specify different queries for open and closed topics, e.g. to show all
+You can specify different queries for ':open' and ':closed' topics, e.g. to show all
 open issues but only recently closed issues, use:
 
   :open \"*\" :closed \"-1mo\"
 
-Alternatively, you can use a single query regardless of topic state:
+Or you can use a single query regardless of topic state:
 
   :any \"-1mo\"
 
-Under the hood, the block uses combination of gh and jq commands like:
+'SIMPLE-QUERY' format is a convenient way to build queries for some typical
+use cases. The query should be a 'plist' with the following properties:
+
+| property          | description                                             |
+|-------------------+---------------------------------------------------------|
+| :created-at       | include only topics created within given date range     |
+| :updated-at       | include only topics updated within given date range     |
+| :closed-at        | include only topics closed within given date range      |
+| :milestone        | include only topics with any of given milestone(s)      |
+| :no-milestone     | exclude topics with any of given milestone(s)           |
+| :label            | include only topics with any of given label(s)          |
+| :every-label      | include only topics with all of given label(s)          |
+| :no-label         | exclude topics with any of given label(s)               |
+| :author           | include only topics with any of given author(s)         |
+| :no-author        | exclude topics with any of given author(s)              |
+| :assignee         | include only topics with any of given assignee(s)       |
+| :no-assignee      | exclude topics with any of given assignee(s)            |
+| :reviewer         | include only topics with any of given reviewer(s)       |
+| :no-reviewer      | exclude topics with any of given reviewer(s)            |
+| :review-status    | include only topics with any of given review status(es) |
+| :no-review-status | exclude topics with any of given review status(es)      |
+
+All properties are optional (but at least one should be provided). Multiple
+properties are ANDed, e.g. (:author \"bob\" :label \"bug\") matches topics with
+author “bob“ AND label “bug“. Most properties support list form, in which case
+its elements are ORed. E.g. (:author (\"bob\" \"alice\") :label \"bug\") matches
+topics with label “bug“ AND author either “bob“ OR “alice“.
+
+':created-at', ':updated-at', ':closed-at' can have one of this forms:
+ - \"TIMESTAMP\"
+ - (> \"TIMESTAMP\")
+ - (>= \"TIMESTAMP\")
+ - (< \"TIMESTAMP\")
+ - (<= \"TIMESTAMP\")
+ - (range \"TIMESTAMP\" \"TIMESTAMP\")
+
+Supported 'TIMESTAMP' formats:
+
+| format                      | description                 |
+|-----------------------------+-----------------------------|
+| “2024-02-20“                | date                        |
+| “2024-02-20T15:59:59Z“      | utc date and time           |
+| “2024-02-20T15:59:79+00:00“ | date and time with timezone |
+| “-10d“                      | 10 days before today        |
+| “-10w“                      | 10 weeks before today       |
+| “-10mo“                     | 10 months before today      |
+| “-10y“                      | 10 years before today       |
+
+Examples:
+  :created-at \"2024-02-20\"
+  :updated-at (>= \"-3mo\")
+
+':milestone', ':label', ':author', ':assignee', and ':reviewer' properties, as
+well as their ':no-xxx' counterparts, can be either a string (to match one value)
+or a list of strings (to match any value from the list). Two special values are
+supported: '*' matches if corresponding property (e.g. assignee) is non-empty,
+and '-' matches if the property unset/empty.
+
+Examples:
+  :author \"bob\"
+  :assignee \"-\"
+  :no-label (\"refactoring\" \"documentation\")
+
+':every-label' is similar to ':label', but it matches topics that have all of
+the labels from the list, instead of any label from list.
+
+':review-status' property can be a symbol or a list of symbols
+(to match any status from the list).
+
+Supported values:
+
+| status    | description                                                           |
+|-----------+-----------------------------------------------------------------------|
+| undecided | review not required, not requested, there're no approvals or rejects  |
+| required  | review is required by repo rules                                      |
+| requested | review is explicitly requested                                        |
+| commented | some reviewers commented without approval or rejection                |
+| approved  | all reviewers either approved or commented, and at least one approved |
+| rejected  | some reviewers requested changes or dismissed review                  |
+
+Examples:
+  :review-status (required requested)
+  :review-status approved
+  :no-review-status (approved rejected commented)
+
+GitHub review state model is complicated. These statuses is an attempt to provide
+a simplified view of the review state for most common needs.
+
+Note that not all statuses are mutually exclusive, in particular 'required' can
+co-exist with any status except 'undecided', and 'commented' can co-exist with
+any other status. You can match multiple statuses by providing a list.
+
+'GITHUB-QUERY' is a string using github search syntax:
+https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
+
+Besides standard syntax, a few extended forms are supported for github query:
+
+| form     | description                                     |
+|----------+-------------------------------------------------|
+| “*“      | match all topics                                |
+| “-123d“  | match if topic was updated during last 123 days |
+| “-123w“  | same, but weeks                                 |
+| “-123mo“ | same, but months                                |
+| “-123y“  | same, but years                                 |
+
+'JQ-SELECTOR' is an optional selector to filter results using jq command:
+https://jqlang.github.io/jq/
+
+Under the hood, this block uses combination of gh and jq commands like:
 
   gh -R <repo> issue list \\
         --json <fields> --search <github query> --limit <limit> \\
     | jq '[.[] | select(<jq selector>)]'
-
-(jq part is optional and is used only when the query has the second form when
-both github and jq parts are present).
 
 Exact commands being executed are printed to '*om-dash*' buffer
 if 'om-dash-verbose' is set.
 
 By default, github query uses all fields from 'om-dash-github-fields', plus any
 field from 'om-dash-github-auto-enabled-fields' if it's present in jq selector.
-
 The latter allows to exclude fields that makes queries slower, when they're
 not used. To change this, you can specify ':fields' parameter explicitly.
 "
@@ -1205,49 +1843,66 @@ not used. To change this, you can specify ':fields' parameter explicitly.
   ;; parse params
   (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
          (type (or (plist-get params :type) (error "om-dash: missing :type")))
-         ;; :any, :open, and :closed may be "query" or ("query" "selector")
-         ;; in the first case, we transform it to ("query" nil)
-         ;; query is for `gh --search`, optional selector is for `jq`
-         (any-param (or (plist-get params :any) nil))
-         (any-filter (cond ((listp any-param) any-param)
-                           (t (list any-param nil))))
-         (open-param (or (plist-get params :open) "*"))
-         (open-filter (cond ((listp open-param) open-param)
-                            (t (list open-param nil))))
-         (closed-param (or (plist-get params :closed) nil))
-         (closed-filter (cond ((listp closed-param) closed-param)
-                              (t (list closed-param nil))))
-         (sort-by (or (plist-get params :sort) "createdAt"))
+         (any-filter (if-let ((param (plist-get params :any)))
+                         (cond ((om-dash--kwlistp param)
+                                (om-dash--github-build-query param))
+                               ((and (listp param) (eq (length param) 2))
+                                param)
+                               ((stringp param)
+                                (list param nil))
+                               (t (error "om-dash: bad :any parameter %S" param)))))
+         (open-filter (if-let ((param (plist-get params :open)))
+                          (cond ((om-dash--kwlistp param)
+                                 (om-dash--github-build-query param))
+                                ((and (listp param) (eq (length param) 2))
+                                 param)
+                                ((stringp param)
+                                 (list param nil))
+                                (t (error "om-dash: bad :open parameter %S" param)))))
+         (closed-filter (if-let ((param (plist-get params :closed)))
+                            (cond ((om-dash--kwlistp param)
+                                   (om-dash--github-build-query param))
+                                  ((and (listp param) (eq (length param) 2))
+                                   param)
+                                  ((stringp param)
+                                   (list param nil))
+                                  (t (error "om-dash: bad :closed parameter %S" param)))))
+         (sort-by (or (plist-get params :sort)
+                      "createdAt"))
          (fields (plist-get params :fields))
-         (limit (or (plist-get params :limit) om-dash-github-limit))
+         (limit (or (plist-get params :limit)
+                    om-dash-github-limit))
          (table-columns (or (plist-get params :table-columns)
                             om-dash-github-columns))
          (headline (or (plist-get params :headline)
-                       (format "%s (%s)" (om-dash--gh-headline type) repo)))
+                       (format "%s (%s)" (om-dash--github-format-headline type) repo)))
          (heading-level (or (plist-get params :heading-level)
                             (om-dash--choose-level))))
-    ;; run command
-    (let* ((raw-output (om-dash--github-run
+    ;; validation and defaults
+    (when (and (or open-filter closed-filter)
+               any-filter)
+      (error "om-dash: :any can't be used together with :open or :closed"))
+    (unless (or any-filter open-filter closed-filter)
+      (setq open-filter (list "*" nil)))
+    ;; build an run command
+    (let* ((raw-output (om-dash--github-read-topics
                         repo type any-filter open-filter closed-filter
                         sort-by fields limit))
            (parsed-output (json-read-from-string raw-output))
-           (columns
+           (column-names
             (seq-map (lambda (col)
-                       (cond ((eq col :state) "state")
-                             ((eq col :number) "no.")
-                             ((eq col :author) "author")
-                             ((eq col :assignee) "assignee")
-                             ((eq col :milestone) "milestone")
-                             ((or (eq col :title)
-                                  (eq col :title-link))
-                              '("title" . t))
-                             ((eq col :tags) "tags")
-                             (t (error
-                                 "om-dash: unknown table column %S"
-                                 col))))
+                       (pcase col
+                         (`:state "state")
+                         (`:number "no.")
+                         (`:author "author")
+                         (`:assignee "assignee")
+                         (`:milestone "milestone")
+                         ((or `:title `:title-link) '("title" . t))
+                         (`:tags "tags")
+                         (_ (error "om-dash: unknown table column %S" col))))
                      table-columns))
            table
-           todo)
+           todo-p)
       (seq-do (lambda (json)
                 (let ((state (cdr (assoc 'state json)))
                       (number (format "#%s" (cdr (assoc 'number json))))
@@ -1259,41 +1914,34 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                          (if assignee-list
                              (s-join "," assignee-list)
                            "-")))
-                      (milestone (cdr (assoc 'title (cdr (assoc 'milestone json)))))
+                      (milestone (or (cdr (assoc 'title
+                                                 (cdr (assoc 'milestone json))))
+                                     "-"))
                       (title (cdr (assoc 'title json)))
                       (url (cdr (assoc 'url json)))
                       (tags (om-dash--format-tags
                              (seq-map (lambda (label) (cdr (assoc 'name label)))
                                       (cdr (assoc 'labels json))))))
                   (if (seq-contains-p (om-dash--todo-keywords) state)
-                      (setq todo t))
+                      (setq todo-p t))
                   (push
                    (seq-map (lambda (col)
-                              (cond ((eq col :state)
-                                     (make-om-dash--cell :text state))
-                                    ((eq col :number)
-                                     (make-om-dash--cell :text number :link url))
-                                    ((eq col :author)
-                                     (make-om-dash--cell :text author))
-                                    ((eq col :assignee)
-                                     (make-om-dash--cell :text assignee))
-                                    ((eq col :milestone)
-                                     (make-om-dash--cell :text milestone))
-                                    ((eq col :title)
-                                     (make-om-dash--cell :text title))
-                                    ((eq col :title-link)
-                                     (make-om-dash--cell :text title :link url))
-                                    ((eq col :tags)
-                                     (make-om-dash--cell :text tags))
-                                    (t (error
-                                        "om-dash: unknown table column %S"
-                                        col))))
+                              (pcase col
+                                (`:state (make-om-dash--cell :text state))
+                                (`:number (make-om-dash--cell :text number :link url))
+                                (`:author (make-om-dash--cell :text author))
+                                (`:assignee (make-om-dash--cell :text assignee))
+                                (`:milestone (make-om-dash--cell :text milestone))
+                                (`:title (make-om-dash--cell :text title))
+                                (`:title-link (make-om-dash--cell :text title :link url))
+                                (`:tags (make-om-dash--cell :text tags))
+                                (_ (error "om-dash: unknown table column %S" col))))
                             table-columns)
                    table)))
               parsed-output)
-      (om-dash--insert-heading (om-dash--choose-keyword todo) headline heading-level)
+      (om-dash--insert-heading (om-dash--choose-keyword todo-p) headline heading-level)
       (when table
-        (om-dash--insert-table columns (nreverse table) heading-level))
+        (om-dash--insert-table column-names (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
 
 (defun org-dblock-write:om-dash-github-project-cards (params)
@@ -1303,220 +1951,272 @@ Note: if you're using new github projects (a.k.a. projects v2, a.k.a projects be
 which are currently default, then use 'om-dash-github-project-items' instead.
 
 Usage example:
-  #+BEGIN: om-dash-github-project-cards :repo \"owner/repo\" :project 123 :column \"name\" :type issue
+  #+BEGIN: om-dash-github-project-cards :repo \"owner/repo\" :type issue :project 123 :column \"name\"
   ...
   #+END:
 
 Parameters:
 
-| parameter      | default                  | description                                              |
-|----------------+--------------------------+----------------------------------------------------------|
-| :repo          | required                 | github repo in form “<owner>/<repo>“                     |
-| :project       | required                 | project identifier (number)                              |
-| :column        | required                 | project column name (string)                             |
-| :type          | required                 | topic type ('issue', 'pullreq', 'any')                   |
-| :state         | 'open'                   | topic state ('open', 'closed', 'any')                    |
-| :sort          | “createdAt“              | sort results by given field                              |
-| :fields        | 'om-dash-github-fields'  | explicitly specify list of fields                        |
-| :limit         | 'om-dash-github-limit'   | limit number of results                                  |
-| :table-columns | 'om-dash-github-columns' | list of columns to display                               |
-| :headline      | auto                     | text for generated org heading                           |
-| :heading-level | auto                     | level for generated org heading                          |
-
-':project' field specifies project numeric identifier (you can see it in URL on github).
-':column' field specifies the name of a column.
+| parameter      | default                  | description                            |
+|----------------+--------------------------+----------------------------------------|
+| :repo          | required                 | github repo in form “<owner>/<repo>“   |
+| :type          | required                 | topic type ('issue', 'pullreq', 'any') |
+| :state         | 'open'                   | topic state ('open', 'closed', 'any')  |
+| :project       | required                 | project identifier (number)            |
+| :column        | required                 | project column name (string)           |
+| :table-columns | 'om-dash-github-columns' | list of columns to display             |
+| :headline      | auto                     | text for generated org heading         |
+| :heading-level | auto                     | level for generated org heading        |
 
 ':type' defines that types of cards to display: issues, pull requests, or all.
 ':state' defines whether to display open and closed issues and pull requests.
 
-All other parameters are identical to 'om-dash-github-topics', see its docstring
-for more details.
+':project' field specifies project numeric identifier (you can see it in URL on github).
+':column' field specifies string name of a project column.
 "
   ;; expand template
   (setq params
         (om-dash--expand-template params))
-  ;; build query
-  (setq params
-        (om-dash-github--classic-project-cards-query params))
-  ;; get topics
-  (org-dblock-write:om-dash-github-topics
-   params))
-
-(defun om-dash-github:milestone (params)
-  "Template for 'om-dash-github-topics' block to display topics from given milestone.
-
-Can be used as ':template' 'milestone' with 'om-dash-github-topics' block.
-
-Usage example:
-  #+BEGIN: om-dash-github-topics :template milestone :repo \"owner/repo\" :type issue :milestone \"name\"
-  ...
-  #+END:
-
-Parameters:
-
-| parameter      | default  | description                            |
-|----------------+----------+----------------------------------------|
-| :repo          | required | github repo in form “<owner>/<repo>“   |
-| :type          | required | topic type ('issue', 'pullreq', 'any') |
-| :state         | 'open'   | topic state ('open', 'closed', 'any')  |
-| :milestone     | required | milestone name (string)                |
-| :headline      | auto     | text for generated org heading         |
-| :heading-level | auto     | level for generated org heading        |
-
-Any other parameter is not used by template and passed to 'om-dash-github-topics' as-is.
-"
-  ;; parse params
+  ;; parse args
   (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
          (type (or (plist-get params :type) (error "om-dash: missing :type")))
          (state (or (plist-get params :state) 'open))
-         (milestone (or (plist-get params :milestone)
-                        (error "om-dash: missing :milestone")))
+         (project (or (plist-get params :project) (error "om-dash: missing :project")))
+         (column (or (plist-get params :column) (error "om-dash: missing :column")))
+         (query (om-dash--github-q-classic-project-column params))
+         (table-columns (or (plist-get params :table-columns)
+                            om-dash-github-columns))
          (headline (or (plist-get params :headline)
-                       (format "%s (%s \"%s\")" (om-dash--gh-headline type)
-                               repo milestone)))
-         (level (plist-get params :heading-level))
-         (query (format "milestone:\"%s\"" (om-dash--gh-quote milestone)))
-         states)
-    (cond ((eq state 'open)
-           (setq states (list :open query :closed "")))
-          ((eq state 'closed)
-           (setq states (list :open "" :closed query)))
-          ((eq state 'any)
-           (setq states (list :any query)))
-          (t
-           (error "om-dash: unknown :state %S" state)))
-    ;; return expanded template
+                       (format "%s (%s \"%s\")"
+                               (om-dash--github-format-headline type)
+                               repo
+                               column)))
+         (heading-level (or (plist-get params :heading-level)
+                            (om-dash--choose-level))))
+    ;; query topics
+    (org-dblock-write:om-dash-github-topics
+     (append
+      (list :repo repo
+            :type type
+            :table-columns table-columns
+            :headline headline
+            :heading-level heading-level)
+      (pcase state
+        (`any `(:any ,query))
+        (`open `(:open ,query :closed ""))
+        (`closed `(:open "" :closed ,query)))))))
+
+(defun om-dash-github:milestone (params)
+  "This template is OBSOLETE.
+Use 'om-dash-github-topics' with ':milestone' query instead.
+"
+  ;; parse args
+  (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
+         (type (or (plist-get params :type) (error "om-dash: missing :type")))
+         (state (or (plist-get params :state) 'open))
+         (milestone (or (plist-get params :milestone) (error "om-dash: missing :milestone")))
+         (query (om-dash--github-q-milestone params))
+         (headline (or (plist-get params :headline)
+                       (format "%s (%s \"%s\")"
+                               (om-dash--github-format-headline type)
+                               repo
+                               milestone)))
+         (heading-level (or (plist-get params :heading-level)
+                            (om-dash--choose-level))))
+    ;; return modified parameters
     (append
-     (list :repo repo
-           :type type
-           :headline headline
-           :heading-level level)
-     states)))
+     (list :headline headline
+           :heading-level heading-level)
+     (pcase state
+       (`any `(:any ,query))
+       (`open `(:open ,query :closed ""))
+       (`closed `(:open "" :closed ,query))))))
+
+(make-obsolete
+ 'om-dash-github:milestone
+ 'org-dblock-write:om-dash-github-topics "0.3")
 
 (defun om-dash-github:project-column (params)
-  "Template for 'om-dash-github-topics' block to display topics from given classic project's column.
-
-Can be used as ':template' 'project-column' with 'om-dash-github-topics' block.
-
-This template supports only classic projects and is OBSOLETE. Use 'om-dash-github-project-items'
-or 'om-dash-github-project-cards' dynamic blocks instead.
-
-Usage example:
-  #+BEGIN: om-dash-github-topics :template project-column :repo \"owner/repo\" :type issue :project 123 :column \"name\"
-  ...
-  #+END:
-
-Parameters:
-
-| parameter      | default  | description                                              |
-|----------------+----------+----------------------------------------------------------|
-| :repo          | required | github repo in form “<owner>/<repo>“                     |
-| :type          | required | topic type ('issue', 'pullreq', 'any')                   |
-| :state         | 'open'   | topic state ('open', 'closed', 'any')                    |
-| :project       | required | project id in form <number> or “<owner>/<repo>/<number>“ |
-| :column        | required | project column name (string)                             |
-| :headline      | auto     | text for generated org heading                           |
-| :heading-level | auto     | level for generated org heading                          |
-
-Any other parameter is not used by template and passed to 'om-dash-github-topics' as-is.
+  "This template is OBSOLETE.
+Use 'om-dash-github-project-items' or 'om-dash-github-project-cards' dynamic blocks instead.
 "
-  (om-dash-github--classic-project-cards-query
-   params))
+  ;; parse args
+  (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
+         (type (or (plist-get params :type) (error "om-dash: missing :type")))
+         (state (or (plist-get params :state) 'open))
+         (project (or (plist-get params :project) (error "om-dash: missing :project")))
+         (column (or (plist-get params :column) (error "om-dash: missing :column")))
+         (query (om-dash--github-q-classic-project-column params))
+         (headline (or (plist-get params :headline)
+                       (format "%s (%s \"%s\")"
+                               (om-dash--github-format-headline type)
+                               repo
+                               column)))
+         (heading-level (or (plist-get params :heading-level)
+                            (om-dash--choose-level))))
+    ;; return modified parameters
+    (append
+     (list :headline headline
+           :heading-level heading-level)
+     (pcase state
+       (`any `(:any ,query))
+       (`open `(:open ,query :closed ""))
+       (`closed `(:open "" :closed ,query))))))
 
 (make-obsolete
  'om-dash-github:project-column
  'org-dblock-write:om-dash-github-project-cards "0.3")
 
-(defun om-dash-github--classic-project-cards-query (params)
-  ;; parse params
-  (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
-         (type (or (plist-get params :type) (error "om-dash: missing :type")))
-         (state (or (plist-get params :state) 'open))
-         ;; project may be "<owner>/<repo>/<id>" or just "<id>"
-         ;; we automatically translate second form to first
-         (project-param (or (plist-get params :project)
-                            (error "om-dash: missing :project")))
-         (project (cond ((and (stringp project-param)
-                              (s-contains-p "/" project-param))
-                         project-param)
-                        (t
-                         (format "%s/%s" repo project-param))))
-         (column (or (plist-get params :column)
-                     (error "om-dash: missing :column")))
-         (headline (or (plist-get params :headline)
-                       (format "%s (%s \"%s\")"
-                               (om-dash--gh-headline type) repo column)))
-         (level (plist-get params :heading-level))
-         (query (list
-                 ;; query
-                 (format "project:%s"
-                         (om-dash--gh-quote project))
-                 ;; selector
-                 (format ".projectCards[] | (.column.name == \"%s\")"
-                         (om-dash--gh-quote column))))
-         states)
-    (cond ((eq state 'open)
-           (setq states (list :open query :closed "")))
-          ((eq state 'closed)
-           (setq states (list :open "" :closed query)))
-          ((eq state 'any)
-           (setq states (list :any query)))
-          (t
-           (error "om-dash: unknown :state %S" state)))
-    ;; return expanded template
-    (append
-     (list :repo repo
-           :type type
-           :headline headline
-           :heading-level level)
-     states)))
-
-(defun om-dash--q-any-kw (keywords)
-  (cons 'or
-        (seq-map (lambda (kw) (list 'todo kw)) keywords)))
-
-(defun om-dash--q-nth-parent (depth pred)
+(defun om-dash--orgfile-q-nth-parent (depth pred)
+  "Build org-ql query that applies predicate to nth parent."
   (while (> depth 0)
     (setq pred (list 'parent pred))
     (setq depth (1- depth)))
   pred)
 
-(defun om-dash--orgfile-subquery (depth keywords)
+(defun om-dash--orgfile-q-and (sub-queries)
+  "Build org-ql query by ANDing non-nil sub-queries."
+  (let ((sub-queries (seq-remove 'not sub-queries)))
+    (pcase (length sub-queries)
+      (0 nil)
+      (1 (car sub-queries))
+      (_ (append '(and) sub-queries)))))
+
+(defun om-dash--orgfile-q-or (sub-queries)
+  "Build org-ql query by ORing non-nil sub-queries."
+  (let ((sub-queries (seq-remove 'not sub-queries)))
+    (pcase (length sub-queries)
+      (0 nil)
+      (1 (car sub-queries))
+      (_ (append '(or) sub-queries)))))
+
+(defun om-dash--orgfile-q-keyword (keywords)
+  "Build org-ql query to match entry keyword."
+  (append '(todo) keywords))
+
+(defun om-dash--orgfile-q-flags (blocked habit)
+  "Build org-ql query to match entry blocked and habit flag."
+  (when (or blocked habit)
+    (om-dash--orgfile-q-and
+     (list
+      (pcase blocked
+        (`nil nil)
+        (`any nil)
+        (`yes '(blocked))
+        (`no '(not (blocked)))
+        (_ (error "om-dash: bad :blocked value %S" blocked)))
+      (pcase habit
+        (`nil nil)
+        (`any nil)
+        (`yes '(habit))
+        (`no '(not (habit)))
+        (_ (error "om-dash: bad :habit value %S" habit)))))))
+
+(defun om-dash--orgfile-q-category (any-category no-category)
+  "Build org-ql query to match entry category."
+  (when (or any-category no-category)
+    (om-dash--orgfile-q-and
+     (list
+      (when any-category
+        (append '(category) any-category))
+      (when no-category
+        `(not ,(append '(category) no-category)))))))
+
+(defun om-dash--orgfile-q-priority (any-priority no-priority)
+  "Build org-ql query to match entry priority."
+  (when (or any-priority no-priority)
+    (om-dash--orgfile-q-and
+     (list
+      (when any-priority
+        (append '(priority) any-priority))
+      (when no-priority
+        `(not ,(append '(priority) no-priority)))))))
+
+(defun om-dash--orgfile-q-tag (any-tag every-tag no-tag)
+  "Build org-ql query for tags."
+  (when (or any-tag every-tag no-tag)
+    (om-dash--orgfile-q-and
+     (list
+      (when any-tag
+        (append '(tags) any-tag))
+      (when every-tag
+        (append '(tags-all) every-tag))
+      (when no-tag
+        `(not ,(append '(tags) no-tag)))))))
+
+(defun om-dash--orgfile-build-subquery (plist depth keywords)
   "Construct org-ql query for TODO or DONE entries."
-  (let* ((kw-query (om-dash--q-any-kw keywords))
-         (all-queries (append
-                       ;; match items of level 1
-                       (list (when (>= depth 1)
-                               `(and (level 1)
-                                     ,kw-query)))
-                       ;; match items of level 2 .. depth
-                       (seq-map
-                        (lambda (depth)
-                          `(and (level ,depth)
-                                ,(om-dash--q-nth-parent (1- depth) kw-query)))
-                        (number-sequence 2 depth))))
-         (non-nil-queries (seq-remove
-                           'not all-queries)))
-    (if (> (length non-nil-queries) 1)
-        (cons 'or non-nil-queries)
-      (car non-nil-queries))))
+  ;; parse parameters
+  (let* ((blocked (plist-get plist :blocked))
+         (habit (plist-get plist :habit))
+         (any-category (if-let ((param (plist-get plist :category)))
+                           (cond ((listp param) param)
+                                 ((stringp param) (list param))
+                                 (t (error "om-dash: bad :category parameter %S" param)))))
+         (no-category (if-let ((param (plist-get plist :no-category)))
+                          (cond ((listp param) param)
+                                ((stringp param) (list param))
+                                (t (error "om-dash: bad :no-category parameter %S" param)))))
+         (any-priority (if-let ((param (plist-get plist :priority)))
+                           (cond ((listp param) param)
+                                 ((stringp param) (list param))
+                                 (t (error "om-dash: bad :priority parameter %S" param)))))
+         (no-priority (if-let ((param (plist-get plist :no-priority)))
+                          (cond ((listp param) param)
+                                ((stringp param) (list param))
+                                (t (error "om-dash: bad :no-priority parameter %S" param)))))
+         (any-tag (if-let ((param (plist-get plist :tag)))
+                      (cond ((listp param) param)
+                            ((stringp param) (list param))
+                            (t (error "om-dash: bad :tag parameter %S" param)))))
+         (every-tag (if-let ((param (plist-get plist :every-tag)))
+                        (cond ((listp param) param)
+                              ((stringp param) (list param))
+                              (t (error "om-dash: bad :every-tag parameter %S" param)))))
+         (no-tag (if-let ((param (plist-get plist :no-tag)))
+                     (cond ((listp param) param)
+                           ((stringp param) (list param))
+                           (t (error "om-dash: bad :no-tag parameter %S" param)))))
+         ;; query to match keyword of top-level entry
+         (kw-query (om-dash--orgfile-q-keyword keywords))
+         ;; query to match parameters of nested entries
+         (filter-query (om-dash--orgfile-q-and
+                        (list
+                         (om-dash--orgfile-q-flags blocked habit)
+                         (om-dash--orgfile-q-category any-category no-category)
+                         (om-dash--orgfile-q-priority any-priority no-priority)
+                         (om-dash--orgfile-q-tag any-tag every-tag no-tag))))
+         ;; query to list level 1 entries
+         (level-1-query
+          (when (>= depth 1)
+            (om-dash--orgfile-q-and `((level 1)
+                                      ,kw-query
+                                      ,filter-query))))
+         ;; queries to list level 2..depth entries
+         (level-n-queries
+          (seq-map
+           (lambda (depth) (om-dash--orgfile-q-and
+                            `((level ,depth)
+                              ,(om-dash--orgfile-q-nth-parent (1- depth) kw-query)
+                              ,filter-query)))
+           (number-sequence 2 depth))))
+    ;; combine queries
+    (om-dash--orgfile-q-or (append (list level-1-query)
+                                   level-n-queries))))
 
-(defun om-dash--orgfile-query (todo-depth done-depth)
-  "Construct org-ql query for all entries."
-  (let* ((todo-query
-         (om-dash--orgfile-subquery todo-depth (om-dash--todo-keywords)))
-        (done-query
-         (om-dash--orgfile-subquery done-depth (om-dash--done-keywords)))
-        (queries
-         (seq-remove 'not (list todo-query done-query))))
-    (if (> (length queries) 1)
-        (cons 'or queries)
-      (car queries))))
+(defun om-dash--orgfile-build-query (plist)
+  "Construct org-ql query from plist."
+  (let* ((todo-depth (or (plist-get plist :todo-depth) 2))
+         (done-depth (or (plist-get plist :done-depth) 1))
+         (todo-query
+          (om-dash--orgfile-build-subquery plist todo-depth (om-dash--todo-keywords)))
+         (done-query
+          (om-dash--orgfile-build-subquery plist done-depth (om-dash--done-keywords))))
+    (om-dash--orgfile-q-or (list todo-query
+                                 done-query))))
 
-(defun om-dash--orgfile-select (file todo-depth done-depth digest)
+(defun om-dash--orgfile-run-query (path query digest)
   "Construct and run org-ql query for om-dash-orgfile."
-  (let ((path (expand-file-name file))
-        (query (om-dash--orgfile-query todo-depth done-depth)))
     (om-dash--log
      (format "%s: %S" path query))
     (let ((entries (org-ql-select path query)))
@@ -1527,7 +2227,7 @@ Any other parameter is not used by template and passed to 'om-dash-github-topics
                         entry :level (1+ (org-element-property :level entry)))
                        entry))
                    entries)
-        entries))))
+        entries)))
 
 (defun om-dash--orgfile-leveled-keyword (keyword level)
   "Format entry for keyword column in om-dash-orgfile block."
@@ -1550,60 +2250,104 @@ Any other parameter is not used by template and passed to 'om-dash-github-topics
 (defun org-dblock-write:om-dash-orgfile (params)
   "Builds org headings with tables based on another org file.
 
-Example usage:
+Basic usage:
 
-  #+BEGIN: om-dash-orgfile :file \"~/my/file.org\" :todo 2 :done 1
+  #+BEGIN: om-dash-orgfile :file \"~/my/file.org\" :query (:todo-depth 2 :done-depth 1)
+  ...
+  #+END:
+
+Custom org-ql query:
+
+  #+BEGIN: om-dash-orgfile :file \"~/my/file.org\" :query (todo \"SOMEDAY\")
   ...
   #+END:
 
 Parameters:
 
-| parameter      | default                   | description                            |
-|----------------+---------------------------+----------------------------------------|
-| :file          | required                  | path to .org file                      |
-| :todo          | 2                         | nesting level for TODO entries         |
-| :done          | 1                         | nesting level for DONE entries         |
-| :digest        | nil                       | generate single table with all entries |
-| :table-columns | 'om-dash-orgfile-columns' | list of columns to display             |
-| :headline      | auto                      | text for generated org headings        |
-| :heading-level | auto                      | level for generated org headings       |
+| parameter      | default                       | description                            |
+|----------------+-------------------------------+----------------------------------------|
+| :file          | required                      | path to .org file                      |
+| :query         | (:todo-depth 2 :done-depth 1) | query for org entries                  |
+| :digest        | nil                           | generate single table with all entries |
+| :table-columns | 'om-dash-orgfile-columns'     | list of columns to display             |
+| :headline      | auto                          | text for generated org headings        |
+| :heading-level | auto                          | level for generated org headings       |
 
-This block generates an org heading with a table for every top-level
-(i.e. level-1) org heading in specified ':file', with nested headings
-represented as table rows.
+By default, this block generates an org heading with a table for every
+top-level (i.e. level-1) org heading in specified ':file', with nested
+headings represented as table rows.
 
-If ':digest' is t, a single table with all entries is generated,
-instead of separate table for every top-level entry.
+If ':digest' is t, a single table with all entries is generated instead.
 
-Parameters ':todo' and ':done' limit how deep the tree is traversed
-for top-level headings in 'TODO' and 'DONE' states.
+':query' defines what entries to retrieve from org file and add to table.
+It should have one of the following forms:
+
+ - plist: om-dash 'SIMPLE-QUERY', e.g. (:todo-depth 2 :done-depth 1)
+ - list: 'ORG-QL' sexp query, e.g. (todo \"SOMEDAY\")
+ - string: 'ORG-QL' string query, e.g. \"todo:SOMEDAY\"
+
+'SIMPLE-QUERY' format is a convenient way to build queries for some typical
+use cases. The query should be a 'plist' with the following properties:
+
+| property     | default | description                                          |
+|--------------+---------+------------------------------------------------------|
+| :todo-depth  | 2       | nesting level for “todo“ entries                     |
+| :done-depth  | 1       | nesting level for “done“ entries                     |
+| :category    | nil     | include only entries with any of given category(ies) |
+| :no-category | nil     | exclide entries with any of given category(ies)      |
+| :priority    | nil     | include only entries with any of given priority(ies) |
+| :no-priority | nil     | exclide entries with any of given priority(ies)      |
+| :tag         | nil     | include only entries with any of given tag(s)        |
+| :every-tag   | nil     | include only entries with all of given tag(s)        |
+| :no-tag      | nil     | exclide entries with any of given tag(s)             |
+| :blocked     | any     | whether to include blocked entries                   |
+| :habit       | any     | whether to include habit entries                     |
+
+Properties ':todo-depth' and ':done-depth' limit how deep the tree is
+traversed for top-level headings in “todo“ and “done“ states.
 
 For example:
 
- - if ':done' is 0, then level-1 headings in 'DONE' state are not
+ - if ':todo-depth' is 0, then level-1 headings in “todo“ state are not
    shown at all
 
- - if ':done' is 1, then level-1 headings in 'DONE' state are shown
+ - if ':todo-depth' is 1, then level-1 headings in “todo“ state are shown
    \"collapsed\", i.e. org heading is generated, but without table
 
- - if ':done' is 2, then level-1 headings in 'DONE' state are shown
+ - if ':todo-depth' is 2, then level-1 headings in “todo“ state are shown
    and each has a table with its level-2 children
 
- - if ':done' is 3, then level-1 headings in 'DONE' state are shown
+ - if ':todo-depth' is 3, then level-1 headings in “todo“ state are shown
    and each has a table with its level-2 and level-3 children
 
-...and so on. Same applies to ':todo' parameter.
+...and so on. Same applies to ':done-depth' parameter.
 
-Whether a heading is considered as 'TODO' or 'DONE' is defined by
+Whether a keyword is considered as “todo“ or “done“ is defined by
 variables 'om-dash-todo-keywords' and 'om-dash-done-keywords'.
-
 By default they are automatically populated from 'org-todo-keywords-1'
 and 'org-done-keywords', but you can set them to your own values.
+
+':category', ':priority', and ':tag' properties, as well as their ':no-xxx'
+counterparts, can be either a string (to match one value) or a list of strings
+(to match any value from the list).
+
+Examples:
+  :priority \"A\"
+  :no-tag (\"wip\" \"stuck\")
+
+':every-tag' is similar to ':tag', but it matches entries that have all of
+the tags from the list, instead of any tag from list.
+
+':blocked' and ':habit' properties should be one of the three symbols: 'any'
+(ignore type), 'yes' (include only entries of this type), 'no' (exclude entries).
+
+For 'ORG-QL' sexp and string queries, see here:
+https://github.com/alphapapa/org-ql?tab=readme-ov-file#queries
 
 ':headline' parameter defines text for org headings which contains
 tables. If ':digest' is t, there is only one table and ':headline'
 is just a string. Otherwise, there are many tables, and ':headline'
-is a format string where '%s' is title of the top-level entry.
+is a format string where '%s' can be used for entry title.
 "
   ;; expand template
   (setq params
@@ -1612,27 +2356,42 @@ is a format string where '%s' is title of the top-level entry.
   (let* ((file (or (plist-get params :file) (error "om-dash: missing :file")))
          (file-path (expand-file-name file))
          (file-name (file-name-nondirectory file))
-         (todo-depth (or (plist-get params :todo) 2))
-         (done-depth (or (plist-get params :done) 1))
+         (query (cond
+                 ;; :query given
+                 ((when-let ((query (plist-get params :query)))
+                    query))
+                 ;; :todo or :done given (backwards compatibility)
+                 ((let ((todo-depth (plist-get params :todo))
+                        (done-depth (plist-get params :done)))
+                    (when (or todo-depth done-depth)
+                      (warn ":todo and :done are deprecated, use :query (:todo-depth N :done-depth K)")
+                      `(:todo-depth ,todo-depth :done-depth ,done-depth))))
+                 ;; nothing given (default query)
+                 (t '(:todo-depth nil :done-depth nil))))
          (digest (plist-get params :digest))
          (table-columns (or (plist-get params :table-columns)
                             om-dash-orgfile-columns))
          (headline (plist-get params :headline))
          (heading-level (or (plist-get params :heading-level)
                             (om-dash--choose-level))))
-    ;; run query
-    (let* ((entries
-            (om-dash--orgfile-select file todo-depth done-depth digest))
-           (columns
+    ;; parse and run query
+    (let* ((sexp-query (pcase query
+                         ;; user provided kwlist, build org-ql sexp query from it
+                         ((pred om-dash--kwlistp) (om-dash--orgfile-build-query query))
+                         ;; user provided org-ql sexp query
+                         ((pred listp) query)
+                         ;; user provided org-ql string string, parse it to sexp
+                         ((pred stringp) (org-ql--query-string-to-sexp query))
+                         (_ (error "om-dash: bad :query %S" query))))
+           (entries
+            (om-dash--orgfile-run-query file-path sexp-query digest))
+           (column-names
             (seq-map (lambda (col)
-                       (cond ((eq col :state) "state")
-                             ((or (eq col :title)
-                                  (eq col :title-link))
-                              '("title" . t))
-                             ((eq col :tags) "tags")
-                             (t (error
-                                 "om-dash: unknown table column %S"
-                                 col))))
+                       (pcase col
+                         (`:state "state")
+                         ((or `:title `:title-link) '("title" . t))
+                         (`:tags "tags")
+                         (_ (error "om-dash: unknown table column %S" col))))
                      table-columns))
            table)
       (when digest
@@ -1656,7 +2415,7 @@ is a format string where '%s' is title of the top-level entry.
           (cond
            ((eq level 1)
             (when table
-              (om-dash--insert-table columns (nreverse table) heading-level)
+              (om-dash--insert-table column-names (nreverse table) heading-level)
               (setq table nil))
             (om-dash--insert-heading keyword
                                      (if headline
@@ -1666,21 +2425,16 @@ is a format string where '%s' is title of the top-level entry.
            (t
             (push
              (seq-map (lambda (col)
-                        (cond ((eq col :state)
-                               (make-om-dash--cell :text leveled-keyword))
-                              ((eq col :title)
-                               (make-om-dash--cell :text leveled-title))
-                              ((eq col :title-link)
-                               (make-om-dash--cell :text leveled-title :link url))
-                              ((eq col :tags)
-                               (make-om-dash--cell :text tags))
-                              (t (error
-                                  "om-dash: unknown table column %S"
-                                  col))))
+                        (pcase col
+                          (`:state (make-om-dash--cell :text leveled-keyword))
+                          (`:title (make-om-dash--cell :text leveled-title))
+                          (`:title-link (make-om-dash--cell :text leveled-title :link url))
+                          (`:tags (make-om-dash--cell :text tags))
+                          (_ (error "om-dash: unknown table column %S" col))))
                       table-columns)
              table)))))
       (when table
-        (om-dash--insert-table columns (nreverse table) heading-level))
+        (om-dash--insert-table column-names (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
 
 (defun om-dash--imap-folder-stats (host port machine user password stream auth folder)
@@ -1796,16 +2550,15 @@ unset when both parameter is omitted and variable is nil.
          (heading-level (or (plist-get params :heading-level)
                             (om-dash--choose-level))))
     ;; get stats and format table
-    (let* ((columns
+    (let* ((column-names
             (seq-map (lambda (col)
-                       (cond ((eq col :state) "state")
-                             ((eq col :new) "new")
-                             ((eq col :unread) "unread")
-                             ((eq col :total) "total")
-                             ((eq col :folder) "folder")
-                             (t (error
-                                 "om-dash: unknown table column %S"
-                                 col))))
+                       (pcase col
+                         (:state "state")
+                         (:new "new")
+                         (:unread "unread")
+                         (:total "total")
+                         (:folder "folder")
+                         (_ (error "om-dash: unknown table column %S" col))))
                      table-columns))
            (entries
             (om-dash--imap-folder-stats host port machine user password stream auth folder))
@@ -1825,29 +2578,20 @@ unset when both parameter is omitted and variable is nil.
                     (> total 0))
             (push
              (seq-map (lambda (col)
-                        (cond ((eq col :state)
-                               (make-om-dash--cell :text state))
-                              ((eq col :new)
-                               (make-om-dash--cell :text (number-to-string
-                                                          new)))
-                              ((eq col :unread)
-                               (make-om-dash--cell :text (number-to-string
-                                                          unread)))
-                              ((eq col :total)
-                               (make-om-dash--cell :text (number-to-string
-                                                          total)))
-                              ((eq col :folder)
-                               (make-om-dash--cell :text folder))
-                              (t (error
-                                  "om-dash: unknown table column %S"
-                                  col))))
+                        (pcase col
+                          (:state (make-om-dash--cell :text state))
+                          (:new (make-om-dash--cell :text (number-to-string new)))
+                          (:unread (make-om-dash--cell :text (number-to-string unread)))
+                          (:total (make-om-dash--cell :text (number-to-string total)))
+                          (:folder (make-om-dash--cell :text folder))
+                          (_ (error "om-dash: unknown table column %S" col))))
                       table-columns)
              table))))
       (om-dash--insert-heading (om-dash--choose-keyword todo-p)
                                headline
                                heading-level)
       (when table
-        (om-dash--insert-table columns (nreverse table) heading-level))
+        (om-dash--insert-table column-names (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
 
 (defun org-dblock-write:om-dash--readme-toc (params)
