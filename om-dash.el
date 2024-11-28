@@ -671,7 +671,7 @@ You can use it so specify cell font."
                     (seq-map (lambda (row)
                                (seq-remove-at-position row col-num))
                              rows))
-              (when (eq stretch-col col-num)
+              (when (>= stretch-col col-num)
                 (setq stretch-col (1- stretch-col))))))))
     ;; adjust column widths to fit contents
     (dolist (row rows)
