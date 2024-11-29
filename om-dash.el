@@ -107,6 +107,8 @@ You can map tag name to a different string or to nil to hide it.")
 (defvar om-dash-templates
   '(
     (milestone . om-dash-github:milestone)
+    (assignee . om-dash-github:assignee)
+    ;; [deprecated]
     (project-column . om-dash-github:project-column)
     )
   "Assoc list of expandable templates for om-dash dynamic blocks.
@@ -181,6 +183,8 @@ Supported values:
 | :state      | OPEN, CLOSED, ... |
 | :number     | #123              |
 | :author     | @octocat          |
+| :assignee   | @octocat,@github  |
+| :milestone  | 1.2.3             |
 | :title      | text              |
 | :title-link | [[link][text]]    |
 | :tags       | :tag1:tag2:...:   |
@@ -1232,6 +1236,8 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                        (cond ((eq col :state) "state")
                              ((eq col :number) "no.")
                              ((eq col :author) "author")
+                             ((eq col :assignee) "assignee")
+                             ((eq col :milestone) "milestone")
                              ((or (eq col :title)
                                   (eq col :title-link))
                               '("title" . t))
@@ -1246,6 +1252,14 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                 (let ((state (cdr (assoc 'state json)))
                       (number (format "#%s" (cdr (assoc 'number json))))
                       (author (format "@%s" (cdr (assoc 'login (cdr (assoc 'author json))))))
+                      (assignee
+                       (let ((assignee-list (seq-map (lambda (user)
+                                                       (format "@%s" (cdr (assoc 'login user))))
+                                                     (cdr (assoc 'assignees json)))))
+                         (if assignee-list
+                             (s-join "," assignee-list)
+                           "-")))
+                      (milestone (cdr (assoc 'title (cdr (assoc 'milestone json)))))
                       (title (cdr (assoc 'title json)))
                       (url (cdr (assoc 'url json)))
                       (tags (om-dash--format-tags
@@ -1261,6 +1275,10 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                                      (make-om-dash--cell :text number :link url))
                                     ((eq col :author)
                                      (make-om-dash--cell :text author))
+                                    ((eq col :assignee)
+                                     (make-om-dash--cell :text assignee))
+                                    ((eq col :milestone)
+                                     (make-om-dash--cell :text milestone))
                                     ((eq col :title)
                                      (make-om-dash--cell :text title))
                                     ((eq col :title-link)

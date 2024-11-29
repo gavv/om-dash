@@ -803,6 +803,7 @@ Supported values:
 | :state      | OPEN, CLOSED, ... |
 | :number     | #123              |
 | :author     | @octocat          |
+| :milestone  | 1.2.3             |
 | :title      | text              |
 | :title-link | [​[link][text]]    |
 | :tags       | :tag1:tag2:...:   |
