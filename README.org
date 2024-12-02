@@ -968,6 +968,12 @@ Allowed values:
  - :cell - whole cell becomes a link
 #+END:
 
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-table-time-format
+*** om-dash-table-time-format
+Format for =format-time-string= used for times in tables.
+E.g. used for :created-at, :updated-at, :closed-at github columns.
+#+END:
+
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-github-columns
 *** om-dash-github-columns
 Column list for =om-dash-github-topics= table.
@@ -978,12 +984,16 @@ Supported values:
 |-------------+-------------------|
 | :state      | OPEN, CLOSED, ... |
 | :number     | #123              |
+| :milestone  | 1.2.3             |
+| :tags       | :tag1:tag2:...:   |
 | :author     | @octocat          |
 | :assignee   | @octocat,@github  |
-| :milestone  | 1.2.3             |
+| :reviewer   | @octocat,@github  |
 | :title      | text              |
 | :title-link | [​[link][text]]    |
-| :tags       | :tag1:tag2:...:   |
+| :created-at | date              |
+| :updated-at | date              |
+| :closed-at  | date              |
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-orgfile-columns

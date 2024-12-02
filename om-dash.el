@@ -179,6 +179,10 @@ Allowed values:
   'om-dash-link-style
   'om-dash-table-link-style "0.2")
 
+(defvar om-dash-table-time-format "%a, %d %b %Y"
+  "Format for 'format-time-string' used for times in tables.
+E.g. used for :created-at, :updated-at, :closed-at github columns.")
+
 (defvar om-dash-github-columns
   '(:state
     :number
@@ -192,12 +196,16 @@ Supported values:
 |-------------+-------------------|
 | :state      | OPEN, CLOSED, ... |
 | :number     | #123              |
+| :milestone  | 1.2.3             |
+| :tags       | :tag1:tag2:...:   |
 | :author     | @octocat          |
 | :assignee   | @octocat,@github  |
-| :milestone  | 1.2.3             |
+| :reviewer   | @octocat,@github  |
 | :title      | text              |
 | :title-link | [[link][text]]    |
-| :tags       | :tag1:tag2:...:   |
+| :created-at | date              |
+| :updated-at | date              |
+| :closed-at  | date              |
 ")
 
 (defvar om-dash-orgfile-columns
@@ -665,7 +673,7 @@ Join resulting list into one string using a separator and return result."
 
 (defun om-dash--insert-cell (cell width)
   "Insert table cell, performing truncation, padding, and formatting link."
-  (let* ((text (om-dash--cell-text cell))
+  (let* ((text (or (om-dash--cell-text cell) ""))
          (link (om-dash--cell-link cell))
          (contents
           (om-dash--format-cell text link width)))
@@ -691,8 +699,8 @@ Join resulting list into one string using a separator and return result."
                    (lambda (name index)
                      (when (consp name)
                        ;; if column name is ("name" . t) instead of "name",
-                       ;; it means that this is the column to stretch to
-                       ;; fit required table width
+                       ;; it means that this is the column to stretch when
+                       ;; we need to fit required table width
                        (when (cdr name)
                          (setq stretch-col index))
                        (setq name (car name)))
@@ -720,7 +728,7 @@ Join resulting list into one string using a separator and return result."
     (dolist (row rows)
       (let* ((col-num 0))
         (dolist (cell row)
-          (let* ((cell-text (om-dash--cell-text cell))
+          (let* ((cell-text (or (om-dash--cell-text cell) ""))
                  (cell-len (length cell-text))
                  (col-name (car (elt columns col-num)))
                  (col-width (cdr (elt columns col-num))))
@@ -1639,6 +1647,30 @@ Example function that returns a single 2x2 table:
               ""))))
     (list gh-query jq-selector)))
 
+(defun om-dash--github-format-assignees (json)
+  "Format assignee name(s) of github topic."
+  (let ((assignee-list (seq-map (lambda (user)
+                                  (format "@%s" (cdr (assoc 'login user))))
+                                (cdr (assoc 'assignees json)))))
+    (when assignee-list
+      (s-join "," assignee-list))))
+
+(defun om-dash--github-format-reviewers (json)
+  "Format reviewer name(s) of github topic."
+  (let ((reviewer-list (seq-uniq
+                        (seq-map (lambda (request)
+                                   (format "@%s" (cdr (assoc 'login request))))
+                                 (cdr (assoc 'reviewRequests json))))))
+    (when reviewer-list
+      (s-join "," reviewer-list))))
+
+(defun om-dash--github-format-timestamp (date)
+  "Re-format github timestamp."
+  (when date
+    (if-let ((ts (ts-parse date)))
+        (ts-format om-dash-table-time-format ts)
+      date)))
+
 (defun om-dash--github-format-headline (type)
   "Get headline from github type."
   (let ((type (om-dash--canon-type type)))
@@ -1894,11 +1926,15 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                        (pcase col
                          (`:state "state")
                          (`:number "no.")
+                         (`:milestone "milestone")
+                         (`:tags "tags")
                          (`:author "author")
                          (`:assignee "assignee")
-                         (`:milestone "milestone")
+                         (`:reviewer "reviewer")
                          ((or `:title `:title-link) '("title" . t))
-                         (`:tags "tags")
+                         (`:created-at "created")
+                         (`:updated-at "updated")
+                         (`:closed-at "closed")
                          (_ (error "om-dash: unknown table column %S" col))))
                      table-columns))
            table
@@ -1906,22 +1942,22 @@ not used. To change this, you can specify ':fields' parameter explicitly.
       (seq-do (lambda (json)
                 (let ((state (cdr (assoc 'state json)))
                       (number (format "#%s" (cdr (assoc 'number json))))
-                      (author (format "@%s" (cdr (assoc 'login (cdr (assoc 'author json))))))
-                      (assignee
-                       (let ((assignee-list (seq-map (lambda (user)
-                                                       (format "@%s" (cdr (assoc 'login user))))
-                                                     (cdr (assoc 'assignees json)))))
-                         (if assignee-list
-                             (s-join "," assignee-list)
-                           "-")))
-                      (milestone (or (cdr (assoc 'title
-                                                 (cdr (assoc 'milestone json))))
-                                     "-"))
-                      (title (cdr (assoc 'title json)))
-                      (url (cdr (assoc 'url json)))
+                      (milestone (cdr (assoc 'title
+                                             (cdr (assoc 'milestone json)))))
                       (tags (om-dash--format-tags
                              (seq-map (lambda (label) (cdr (assoc 'name label)))
-                                      (cdr (assoc 'labels json))))))
+                                      (cdr (assoc 'labels json)))))
+                      (author (format "@%s" (cdr (assoc 'login (cdr (assoc 'author json))))))
+                      (assignee (om-dash--github-format-assignees json))
+                      (reviewer (om-dash--github-format-reviewers json))
+                      (title (cdr (assoc 'title json)))
+                      (url (cdr (assoc 'url json)))
+                      (created-at (om-dash--github-format-timestamp
+                                   (cdr (assoc 'createdAt json))))
+                      (updated-at (om-dash--github-format-timestamp
+                                   (cdr (assoc 'updatedAt json))))
+                      (closed-at (om-dash--github-format-timestamp
+                                  (cdr (assoc 'closedAt json)))))
                   (if (seq-contains-p (om-dash--todo-keywords) state)
                       (setq todo-p t))
                   (push
@@ -1929,12 +1965,16 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                               (pcase col
                                 (`:state (make-om-dash--cell :text state))
                                 (`:number (make-om-dash--cell :text number :link url))
+                                (`:milestone (make-om-dash--cell :text milestone))
+                                (`:tags (make-om-dash--cell :text tags))
                                 (`:author (make-om-dash--cell :text author))
                                 (`:assignee (make-om-dash--cell :text assignee))
-                                (`:milestone (make-om-dash--cell :text milestone))
+                                (`:reviewer (make-om-dash--cell :text reviewer))
                                 (`:title (make-om-dash--cell :text title))
                                 (`:title-link (make-om-dash--cell :text title :link url))
-                                (`:tags (make-om-dash--cell :text tags))
+                                (`:created-at (make-om-dash--cell :text created-at))
+                                (`:updated-at (make-om-dash--cell :text updated-at))
+                                (`:closed-at (make-om-dash--cell :text closed-at))
                                 (_ (error "om-dash: unknown table column %S" col))))
                             table-columns)
                    table)))
