@@ -26,10 +26,8 @@
 ;; to compose a custom dashboard for your projects.
 
 ;; The following dynamic blocks are available:
-;; * om-dash-github-topics
+;; * om-dash-github
 ;;   generates a table with issues or pull requests from github repository
-;; * om-dash-github-project-cards
-;;   generates a table with cards from github classic project
 ;; * om-dash-orgfile
 ;;   generates tables with top-level entries from an org file
 ;; * om-dash-imap
@@ -130,7 +128,7 @@ This function is invoked with dynamic block parameters plist and should
 return a new plist. The new plist is used to update the original
 parameters by appending new values and overwriting existing values.
 
-For example, if 'org-dblock-write:om-dash-github-topics' block has parameters:
+For example, if 'org-dblock-write:om-dash-github' block has parameters:
   (:repo \"owner/repo\"
    :type 'issue
    :template project-column
@@ -188,30 +186,32 @@ E.g. used for :created-at, :updated-at, :closed-at github columns.")
     :number
     :author
     :title-link)
-  "Column list for 'om-dash-github-topics' table.
+  "Column list for 'om-dash-github' tables.
 
 Supported values:
 
-| symbol      | example           |
-|-------------+-------------------|
-| :state      | OPEN, CLOSED, ... |
-| :number     | #123              |
-| :milestone  | 1.2.3             |
-| :tags       | :tag1:tag2:...:   |
-| :author     | @octocat          |
-| :assignee   | @octocat,@github  |
-| :reviewer   | @octocat,@github  |
-| :title      | text              |
-| :title-link | [[link][text]]    |
-| :created-at | date              |
-| :updated-at | date              |
-| :closed-at  | date              |
+| symbol          | example           |
+|-----------------+-------------------|
+| :state          | OPEN, CLOSED, ... |
+| :number         | #123              |
+| :title          | text              |
+| :title-link     | [[link][text]]    |
+| :milestone      | 1.2.3             |
+| :tags           | :tag1:tag2:...:   |
+| :author         | @octocat          |
+| :assignee       | @octocat,@github  |
+| :reviewer       | @octocat,@github  |
+| :project        | text              |
+| :project-status | text              |
+| :created-at     | date              |
+| :updated-at     | date              |
+| :closed-at      | date              |
 ")
 
 (defvar om-dash-orgfile-columns
   '(:state
     :title-link)
-  "Column list for 'om-dash-orgfile' table.
+  "Column list for 'om-dash-orgfile' tables.
 
 Supported values:
 
@@ -229,7 +229,7 @@ Supported values:
     :unread
     :total
     :folder)
-  "Column list for 'om-dash-imap' table.
+  "Column list for 'om-dash-imap' tables.
 
 Supported values:
 
@@ -277,8 +277,6 @@ only last 'om-dash-github-limit' results are returned.")
       "milestone"
       "number"
       "potentialMergeCommit"
-      "reviewDecision"
-      "reviewRequests"
       "state"
       "title"
       "updatedAt"
@@ -311,7 +309,7 @@ slow down response times.
 There is also 'om-dash-github-auto-enabled-fields', which defines fields
 that are enabled automatically for a query if jq selector contains them.
 
-In addition, 'org-dblock-write:om-dash-github-*' accept ':fields'
+In addition, 'org-dblock-write:om-dash-github' accept ':fields'
 parameter, which can be used to overwrite fields list per-block.")
 
 (defvar om-dash-github-auto-enabled-fields
@@ -329,6 +327,8 @@ parameter, which can be used to overwrite fields list per-block.")
       "projectCards"
       "projectItems"
       "reactionGroups"
+      "reviewDecision"
+      "reviewRequests"
       "reviews"
       "statusCheckRollup"
       ))
@@ -809,26 +809,6 @@ Join resulting list into one string using a separator and return result."
         (om-dash--log (format "command exited with status %s" status))
         (error "om-dash: command failed")))))
 
-(defun om-dash--expand-template (params)
-  "Return params with expanded :template (if it's present)"
-  (let ((result-params
-         (if-let ((template-name (plist-get params :template)))
-             (let* ((template (or (assoc template-name om-dash-templates)
-                                  (error "om-dash: unknown :template %s"
-                                         template-name)))
-                    (expanded-params (funcall (cdr template) params))
-                    (merged-params (seq-copy params)))
-               (while expanded-params
-                 (let ((key (car expanded-params))
-                       (val (cadr expanded-params)))
-                   (setq merged-params (plist-put merged-params key val))
-                   (setq expanded-params (cddr expanded-params))))
-               merged-params)
-           (seq-copy params))))
-    (if (plist-member result-params :template)
-        (cl-remf result-params :template))
-    result-params))
-
 (defun om-dash--parse-json (columns raw-output)
   "Parse json output to table."
   (let ((parsed-output (json-read-from-string raw-output))
@@ -896,138 +876,25 @@ Join resulting list into one string using a separator and return result."
                   (t
                    (error "om-dash: bad timestamp %S" str)))))))
 
-(defun org-dblock-write:om-dash-command (params)
-  "Builds org heading with a table from output of a shell command.
-
-Usage example:
-  #+BEGIN: om-dash-command :command \"curl -s https://api.github.com/users/octocat/repos\" :format json :columns (\"name\" \"forks_count\")
-  ...
-  #+END:
-
-| parameter      | default  | description                             |
-|----------------+----------+-----------------------------------------|
-| :command       | required | shell command to run                    |
-| :columns       | required | column names (list of strings)          |
-| :format        | 'json'   | command output format ('json' or 'csv') |
-| :headline      | auto     | text for generated org heading          |
-| :heading-level | auto     | level for generated org heading         |
-
-If ':format' is 'json', command output should be a JSON array of
-JSON objects, which have a value for every key from ':columns'.
-
-If ':format' is 'csv', command output should be CSV. First column
-of CSV becomes value of first column from ':columns', and so on.
-
-Note: using CSV format requires installing 'parse-csv' package
-from https://github.com/mrc/el-csv
-"
-  ;; expand template
-  (setq params
-        (om-dash--expand-template params))
-  ;; parse params
-  (let* ((command (or (plist-get params :command)
-                      (error "om-dash: missing :command")))
-         (format (or (plist-get params :format) 'json))
-         (columns (or (plist-get params :columns)
-                      (error "om-dash: missing :columns")))
-         (headline (or (plist-get params :headline)
-                       (file-name-nondirectory
-                        (car (split-string-shell-command command)))))
-         (heading-level (or (plist-get params :heading-level)
-                            (om-dash--choose-level))))
-    ;; run command
-    (let* ((raw-output (om-dash--shell-run command t))
-           (table (pcase format
-                    (`json (om-dash--parse-json columns raw-output))
-                    (`csv (om-dash--parse-csv columns raw-output))
-                    (_ (error "om-dash: bad :format %S" format))))
-           (is-todo (om-dash--table-todo-p table)))
-      (om-dash--insert-heading (om-dash--choose-keyword is-todo)
-                               headline heading-level)
-      (when table
-        (om-dash--insert-table columns table heading-level))
-      (om-dash--remove-empty-line))))
-
-(defun org-dblock-write:om-dash-function (params)
-  "Builds org heading with a table from output of a elisp function.
-
-Usage example:
-  #+BEGIN: om-dash-function :fun example-func
-  ...
-  #+END:
-
-| parameter      | default  | description                     |
-|----------------+----------+---------------------------------|
-| :function      | required | elisp function to call          |
-| :args          | nil      | optional function arguments     |
-| :headline      | auto     | text for generated org heading  |
-| :heading-level | auto     | level for generated org heading |
-
-The function should return a list of tables, where each table is
-a 'plist' with the following properties:
-
-| property      | default  | description                                          |
-|---------------+----------+------------------------------------------------------|
-| :keyword      | 'TODO'   | keyword for generated org heading                    |
-| :headline     | auto     | text for generated org heading                       |
-| :level        | auto     | level for generated org heading                      |
-| :column-names | required | list of column names (strings)                       |
-| :rows         | required | list of rows, where row is a list of cells (strings) |
-
-If ':headline' or ':heading-level' is provided as the block parameter, it overrides
-':headline' or ':level' returned from function.
-
-Example function that returns a single 2x2 table:
-
-  (defun example-func ()
-    ;; list of tables
-    (list
-     ;; table plist
-     (list :keyword \"TODO\"
-           :headline \"example table\"
-           :column-names '(\"foo\" \"bar\")
-           :rows '((\"a\" \"b\")
-                   (\"c\" \"d\")))))
-"
-  ;; expand template
-  (setq params
-        (om-dash--expand-template params))
-  ;; parse params
-  (let* ((function (or (plist-get params :fun)
-                       (error "om-dash: missing :fun")))
-         (args (plist-get params :args))
-         (default-keyword (om-dash--choose-keyword nil))
-         (forced-headline (or (plist-get params :headline)
-                              (symbol-name function)))
-         (forced-level (or (plist-get params :heading-level)
-                           (om-dash--choose-level))))
-    ;; run function and build table
-    (dolist (table-plist (apply function args))
-      (let* ((keyword (or (plist-get table-plist :keyword)
-                          default-keyword))
-             (headline (or forced-headline
-                           (plist-get table-plist :headline)))
-             (heading-level (or forced-level
-                                (plist-get table-plist :level)))
-             (column-names (or (plist-get table-plist :column-names)
-                               (error "om-dash: missing :column-names")))
-             (rows (or (plist-get table-plist :rows)
-                       (error "om-dash: missing :rows")))
-             table)
-        (dolist (row rows)
-          (push
-           (seq-map (lambda (cell-text)
-                      (if-let ((link (om-dash--parse-link cell-text)))
-                          (make-om-dash--cell :text (car link) :link (cdr link))
-                        (make-om-dash--cell :text cell-text)))
-                    row)
-           table))
-        (om-dash--insert-heading keyword
-                                 headline
-                                 heading-level)
-        (when table
-          (om-dash--insert-table column-names (nreverse table) heading-level))
-        (om-dash--remove-empty-line)))))
+(defun om-dash--expand-template (params)
+  "Return params with expanded :template (if it's present)"
+  (let ((result-params
+         (if-let ((template-name (plist-get params :template)))
+             (let* ((template (or (assoc template-name om-dash-templates)
+                                  (error "om-dash: unknown :template %s"
+                                         template-name)))
+                    (expanded-params (funcall (cdr template) params))
+                    (merged-params (seq-copy params)))
+               (while expanded-params
+                 (let ((key (car expanded-params))
+                       (val (cadr expanded-params)))
+                   (setq merged-params (plist-put merged-params key val))
+                   (setq expanded-params (cddr expanded-params))))
+               merged-params)
+           (seq-copy params))))
+    (if (plist-member result-params :template)
+        (cl-remf result-params :template))
+    result-params))
 
 (defun om-dash--gh-quote-arg (str)
   "Quote argument of github query search term."
@@ -1046,7 +913,7 @@ Example function that returns a single 2x2 table:
                 type)))
     (cdr (assoc key field-map))))
 
-(defun om-dash--gh-build-fields-arg (type selector fields)
+(defun om-dash--gh-build-fields-arg (type selector fields extra-fields)
   "Construct fields list for gh command."
   ;; if user didn't provide :fields, construct them automatically
   (unless fields
@@ -1061,7 +928,8 @@ Example function that returns a single 2x2 table:
           (if (s-contains-p field selector)
               (setq fields
                     (append fields (list field)))))))
-  (seq-uniq fields))
+  (seq-uniq (append fields
+                    extra-fields)))
 
 (defun om-dash--gh-build-search-arg (state query)
   "Construct query for gh --search option."
@@ -1081,7 +949,7 @@ Example function that returns a single 2x2 table:
                 (t query)))))
     (s-join " " (seq-remove 's-blank-p sub-queries))))
 
-(defun om-dash--gh-build-command (repo type state filter fields limit)
+(defun om-dash--gh-build-command (repo type state filter fields extra-fields limit)
   "Construct gh command."
   (let ((type (om-dash--canon-type type))
         (query (car filter))
@@ -1089,7 +957,7 @@ Example function that returns a single 2x2 table:
         command)
     (when (s-present-p query)
       (let ((fields
-             (s-join "," (om-dash--gh-build-fields-arg type selector fields)))
+             (s-join "," (om-dash--gh-build-fields-arg type selector fields extra-fields)))
             (subcmd (pcase type
                       (`pullreq "pr")
                       (`issue "issue")
@@ -1125,10 +993,24 @@ Example function that returns a single 2x2 table:
             (om-dash--shell-quote expr)
             (s-join " " (seq-map 'om-dash--shell-quote input-files)))))
 
+(defun om-dash--github-build-extra-fields (table-columns)
+  "Determine what additional github fields to we need to request."
+  (apply 'append
+         (seq-remove
+          'not (list
+                (when (seq-contains table-columns :reviewer)
+                  '("reviewRequests"))
+                (when (or (seq-contains table-columns :project)
+                          (seq-contains table-columns :project-status))
+                  '("projectItems"
+                    "projectCards"))))))
+
 (defun om-dash--github-read-topics (repo type any-filter open-filter closed-filter
-                                         sort-by fields limit)
-  "Construct and run command for om-dash-github-topics."
-  (let* ((gh-types
+                                         sort-by fields table-columns limit)
+  "Construct and run command for om-dash-github."
+  (let* ((extra-fields
+          (om-dash--github-build-extra-fields table-columns))
+         (gh-types
           (if (eq type 'any) (list 'pullreq 'issue)
             (list type)))
          (gh-commands
@@ -1138,11 +1020,11 @@ Example function that returns a single 2x2 table:
                               (lambda (type)
                                 (list
                                  (om-dash--gh-build-command ;  :any
-                                  repo type 'any any-filter fields limit)
+                                  repo type 'any any-filter fields extra-fields limit)
                                  (om-dash--gh-build-command ;  :open
-                                  repo type 'open open-filter fields limit)
+                                  repo type 'open open-filter fields extra-fields limit)
                                  (om-dash--gh-build-command ;  :closed
-                                  repo type 'closed closed-filter fields limit)))
+                                  repo type 'closed closed-filter fields extra-fields limit)))
                               gh-types))))
          (gh-outputs
           (seq-map (lambda (cmd) (make-temp-file "om-dash-"))
@@ -1580,33 +1462,62 @@ Example function that returns a single 2x2 table:
                                                     ignore-selector))))))
     (list nil jq-selector)))
 
-(defun om-dash--github-q-classic-project-column (params)
-  "Build query to fetch cards classic github project."
+(defun om-dash--github-q-project (params)
+  "Build query for :project, :project-status :no-project-status"
   (let* ((repo (plist-get params :repo))
+         (owner (car (s-split "/" repo)))
          (project (if-let ((param (plist-get params :project)))
-                      ;; project may be "<owner>/<repo>/<id>" or just "<id>"
-                      ;; we automatically translate second form to first
-                      (cond ((and (stringp param)
-                                  (s-contains-p "/" param))
-                             param)
-                            (t
-                             (format "%s/%s" repo param)))))
-         (column (plist-get params :column))
+                      (cond ((listp param) param)
+                            (t (list 'v2 param)))))
+         (match-status (if-let ((param (plist-get params :project-status)))
+                             (cond ((listp param) param)
+                                   (t (list param)))))
+         (ignore-status (if-let ((param (plist-get params :no-project-status)))
+                             (cond ((listp param) param)
+                                   (t (list param)))))
          (gh-query
           ;; :project
           (when project
             ;; only include topics with specified project
-            (format "project:%s"
-                    (om-dash--gh-quote-arg project))))
+            (format "project:%s/%s"
+                    (pcase (car project)
+                      (`v2 owner)
+                      (`classic repo)
+                      (_ (error "om-dash: bad project type %S" project-type)))
+                    (cadr project))))
          (jq-selector
-          ;; :column
-          (when column
-            ;; only include topics with specified column name
-            (format ".projectCards[] | (.column.name == \"%s\")"
-                    (om-dash--gh-quote-arg column)))))
+          (om-dash--join
+           " and "
+           ;; :project-status
+           (seq-map (lambda (status)
+                      (unless project
+                        (error "om-dash: missing :project"))
+                      (pcase (car project)
+                        ;; only include topics with specified status name
+                        (`v2
+                         (format "any(.projectItems[]; .status.name == \"%s\")"
+                                 (om-dash--gh-quote-arg status)))
+                        ;; only include topics with specified column name
+                        (`classic
+                         (format "any(.projectCards[]; .column.name == \"%s\")"
+                                 (om-dash--gh-quote-arg status)))))
+                    match-status)
+           (seq-map (lambda (status)
+                      (unless project
+                        (error "om-dash: missing :project"))
+                      (pcase (car project)
+                        ;; exclude topics with specified status name
+                        (`v2
+                         (format "all(.projectItems[]; .status.name != \"%s\")"
+                                 (om-dash--gh-quote-arg status)))
+                        ;; exclude  topics with specified column name
+                        (`classic
+                         (format "all(.projectCards[]; .column.name != \"%s\")"
+                                 (om-dash--gh-quote-arg status)))))
+                    ignore-status))))
     (list gh-query jq-selector)))
 
-(defun om-dash--github-build-query (plist)
+(defun om-dash--github-build-query (params plist)
   "Build gh and jq queries from plist."
   (let* (;; build sub-queries for all supported parameters
          ;; query-list is a list of pairs (gh-query jq-selector)
@@ -1614,7 +1525,7 @@ Example function that returns a single 2x2 table:
          ;; not given, we filter them out below
          (subquery-list
           (seq-map (lambda (build-func)
-                     (apply build-func plist nil))
+                     (apply build-func (append plist params) nil))
                    (list
                     #'om-dash--github-q-timestamp
                     #'om-dash--github-q-milestone
@@ -1622,7 +1533,8 @@ Example function that returns a single 2x2 table:
                     #'om-dash--github-q-author
                     #'om-dash--github-q-assignee
                     #'om-dash--github-q-reviewer
-                    #'om-dash--github-q-review-status)))
+                    #'om-dash--github-q-review-status
+                    #'om-dash--github-q-project)))
          ;; join all non-empty github sub-queries
          (gh-query
           (let ((query
@@ -1651,7 +1563,7 @@ Example function that returns a single 2x2 table:
               ""))))
     (list gh-query jq-selector)))
 
-(defun om-dash--github-format-assignees (json)
+(defun om-dash--github-format-assignee (json)
   "Format assignee name(s) of github topic."
   (let ((assignee-list (seq-map (lambda (user)
                                   (format "@%s" (cdr (assoc 'login user))))
@@ -1659,7 +1571,7 @@ Example function that returns a single 2x2 table:
     (when assignee-list
       (s-join "," assignee-list))))
 
-(defun om-dash--github-format-reviewers (json)
+(defun om-dash--github-format-reviewer (json)
   "Format reviewer name(s) of github topic."
   (let ((reviewer-list (seq-uniq
                         (seq-map (lambda (request)
@@ -1667,6 +1579,34 @@ Example function that returns a single 2x2 table:
                                  (cdr (assoc 'reviewRequests json))))))
     (when reviewer-list
       (s-join "," reviewer-list))))
+
+(defun om-dash--github-format-project (json)
+  "Format project name(s)."
+  (when-let ((project-list
+              (seq-uniq
+               (if-let ((project-items (cdr (assoc 'projectItems json))))
+                   (seq-map (lambda (item)
+                              (cdr (assoc 'title item)))
+                            project-items)
+                 (if-let ((project-cards (cdr (assoc 'projectCards json))))
+                     (seq-map (lambda (card)
+                                (cdr (assoc 'name (cdr (assoc 'project card)))))
+                              project-cards))))))
+    (s-join ", " project-list)))
+
+(defun om-dash--github-format-project-status (json)
+  "Format project status name(s)."
+  (when-let ((status-list
+              (seq-uniq
+               (if-let ((project-items (cdr (assoc 'projectItems json))))
+                   (seq-map (lambda (item)
+                              (cdr (assoc 'name (cdr (assoc 'status item)))))
+                            project-items)
+                 (if-let ((project-cards (cdr (assoc 'projectCards json))))
+                     (seq-map (lambda (card)
+                                (cdr (assoc 'name (cdr (assoc 'column card)))))
+                              project-cards))))))
+    (s-join ", " status-list)))
 
 (defun om-dash--github-format-timestamp (date)
   "Re-format github timestamp."
@@ -1684,24 +1624,24 @@ Example function that returns a single 2x2 table:
       (`any "issues and pull requests")
       (_ (error "om-dash: bad type %S" type)))))
 
-(defun org-dblock-write:om-dash-github-topics (params)
+(defun org-dblock-write:om-dash-github (params)
   "Builds org heading with a table of github issues or pull requests.
 
 Basic example:
 
-  #+BEGIN: om-dash-github-topics :repo \"owner/repo\" :type issue :open \"*\" :closed \"-1w\"
+  #+BEGIN: om-dash-github :repo \"owner/repo\" :type issue :open \"*\" :closed \"-1w\"
   ...
   #+END:
 
 More complicated query using simple syntax:
 
-  #+BEGIN: om-dash-github-topics :repo \"owner/repo\" :type pullreq :open (:milestone \"1.2.3\" :label \"blocker\" :no-label \"triage\")
+  #+BEGIN: om-dash-github :repo \"owner/repo\" :type pullreq :open (:milestone \"1.2.3\" :label \"blocker\" :no-label \"triage\")
   ...
   #+END:
 
 Same query but by providing github search query and jq selector:
 
-  #+BEGIN: om-dash-github-topics :repo \"owner/repo\" :type pullreq :open (\"milestone:1.2.3 label:blocker\" \".labels | (.name == \\\"triage\\\") | not\")
+  #+BEGIN: om-dash-github :repo \"owner/repo\" :type pullreq :open (\"milestone:1.2.3 label:blocker\" \".labels | (.name == \\\"triage\\\") | not\")
   ...
   #+END:
 
@@ -1750,24 +1690,27 @@ Or you can use a single query regardless of topic state:
 'SIMPLE-QUERY' format is a convenient way to build queries for some typical
 use cases. The query should be a 'plist' with the following properties:
 
-| property          | description                                             |
-|-------------------+---------------------------------------------------------|
-| :created-at       | include only topics created within given date range     |
-| :updated-at       | include only topics updated within given date range     |
-| :closed-at        | include only topics closed within given date range      |
-| :milestone        | include only topics with any of given milestone(s)      |
-| :no-milestone     | exclude topics with any of given milestone(s)           |
-| :label            | include only topics with any of given label(s)          |
-| :every-label      | include only topics with all of given label(s)          |
-| :no-label         | exclude topics with any of given label(s)               |
-| :author           | include only topics with any of given author(s)         |
-| :no-author        | exclude topics with any of given author(s)              |
-| :assignee         | include only topics with any of given assignee(s)       |
-| :no-assignee      | exclude topics with any of given assignee(s)            |
-| :reviewer         | include only topics with any of given reviewer(s)       |
-| :no-reviewer      | exclude topics with any of given reviewer(s)            |
-| :review-status    | include only topics with any of given review status(es) |
-| :no-review-status | exclude topics with any of given review status(es)      |
+| property           | description                                              |
+|--------------------+----------------------------------------------------------|
+| :created-at        | include only topics created within given date range      |
+| :updated-at        | include only topics updated within given date range      |
+| :closed-at         | include only topics closed within given date range       |
+| :milestone         | include only topics with any of given milestone(s)       |
+| :no-milestone      | exclude topics with any of given milestone(s)            |
+| :label             | include only topics with any of given label(s)           |
+| :every-label       | include only topics with all of given label(s)           |
+| :no-label          | exclude topics with any of given label(s)                |
+| :author            | include only topics with any of given author(s)          |
+| :no-author         | exclude topics with any of given author(s)               |
+| :assignee          | include only topics with any of given assignee(s)        |
+| :no-assignee       | exclude topics with any of given assignee(s)             |
+| :reviewer          | include only topics with any of given reviewer(s)        |
+| :no-reviewer       | exclude topics with any of given reviewer(s)             |
+| :review-status     | include only topics with any of given review status(es)  |
+| :no-review-status  | exclude topics with any of given review status(es)       |
+| :project           | include only topics added to given project               |
+| :project-status    | include only topics with any of given project status(es) |
+| :no-project-status | exclude topics with any of given project status(es)      |
 
 All properties are optional (but at least one should be provided). Multiple
 properties are ANDed, e.g. (:author \"bob\" :label \"bug\") matches topics with
@@ -1839,6 +1782,24 @@ Note that not all statuses are mutually exclusive, in particular 'required' can
 co-exist with any status except 'undecided', and 'commented' can co-exist with
 any other status. You can match multiple statuses by providing a list.
 
+':project' property can have one of the two forms:
+ - number
+ - (type number)
+
+Here, number is project id (you can see it in url), and optional type is either 'v2'
+or 'classic'. (Classic projects are deprecated by GitHub but are still in use). If
+type is omitted, 'v2' is assumed.
+
+':project-status' can be a string or a list of strings. For 'v2' projects, it matches
+“status“ field of the project item, which corresponds to column name if board view of
+the project. For 'classic' projects, it matches “column“ property of the project card.
+
+If you use ':project-status', you should alsp specify ':project'.
+
+Examples:
+  :project 5 :project-status \"In work\"
+  :project (classic 2) :project-status (\"Backlog\" \"On hold\")
+
 'GITHUB-QUERY' is a string using github search syntax:
 https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
 
@@ -1877,7 +1838,7 @@ not used. To change this, you can specify ':fields' parameter explicitly.
          (type (or (plist-get params :type) (error "om-dash: missing :type")))
          (any-filter (if-let ((param (plist-get params :any)))
                          (cond ((om-dash--kwlistp param)
-                                (om-dash--github-build-query param))
+                                (om-dash--github-build-query params param))
                                ((and (listp param) (eq (length param) 2))
                                 param)
                                ((stringp param)
@@ -1885,7 +1846,7 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                                (t (error "om-dash: bad :any parameter %S" param)))))
          (open-filter (if-let ((param (plist-get params :open)))
                           (cond ((om-dash--kwlistp param)
-                                 (om-dash--github-build-query param))
+                                 (om-dash--github-build-query params param))
                                 ((and (listp param) (eq (length param) 2))
                                  param)
                                 ((stringp param)
@@ -1893,7 +1854,7 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                                 (t (error "om-dash: bad :open parameter %S" param)))))
          (closed-filter (if-let ((param (plist-get params :closed)))
                             (cond ((om-dash--kwlistp param)
-                                   (om-dash--github-build-query param))
+                                   (om-dash--github-build-query params param))
                                   ((and (listp param) (eq (length param) 2))
                                    param)
                                   ((stringp param)
@@ -1919,19 +1880,21 @@ not used. To change this, you can specify ':fields' parameter explicitly.
     ;; build an run command
     (let* ((raw-output (om-dash--github-read-topics
                         repo type any-filter open-filter closed-filter
-                        sort-by fields limit))
+                        sort-by fields table-columns limit))
            (parsed-output (json-read-from-string raw-output))
            (column-names
             (seq-map (lambda (col)
                        (pcase col
                          (`:state "state")
                          (`:number "no.")
+                         ((or `:title `:title-link) '("title" . t))
                          (`:milestone "milestone")
                          (`:tags "tags")
                          (`:author "author")
                          (`:assignee "assignee")
                          (`:reviewer "reviewer")
-                         ((or `:title `:title-link) '("title" . t))
+                         (`:project "project")
+                         (`:project-status "status")
                          (`:created-at "created")
                          (`:updated-at "updated")
                          (`:closed-at "closed")
@@ -1948,8 +1911,10 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                              (seq-map (lambda (label) (cdr (assoc 'name label)))
                                       (cdr (assoc 'labels json)))))
                       (author (format "@%s" (cdr (assoc 'login (cdr (assoc 'author json))))))
-                      (assignee (om-dash--github-format-assignees json))
-                      (reviewer (om-dash--github-format-reviewers json))
+                      (assignee (om-dash--github-format-assignee json))
+                      (reviewer (om-dash--github-format-reviewer json))
+                      (project (om-dash--github-format-project json))
+                      (project-status (om-dash--github-format-project-status json))
                       (title (cdr (assoc 'title json)))
                       (url (cdr (assoc 'url json)))
                       (created-at (om-dash--github-format-timestamp
@@ -1965,13 +1930,15 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                               (pcase col
                                 (`:state (make-om-dash--cell :text state))
                                 (`:number (make-om-dash--cell :text number :link url))
+                                (`:title (make-om-dash--cell :text title))
+                                (`:title-link (make-om-dash--cell :text title :link url))
                                 (`:milestone (make-om-dash--cell :text milestone))
                                 (`:tags (make-om-dash--cell :text tags))
                                 (`:author (make-om-dash--cell :text author))
                                 (`:assignee (make-om-dash--cell :text assignee))
                                 (`:reviewer (make-om-dash--cell :text reviewer))
-                                (`:title (make-om-dash--cell :text title))
-                                (`:title-link (make-om-dash--cell :text title :link url))
+                                (`:project (make-om-dash--cell :text project))
+                                (`:project-status (make-om-dash--cell :text project-status))
                                 (`:created-at (make-om-dash--cell :text created-at))
                                 (`:updated-at (make-om-dash--cell :text updated-at))
                                 (`:closed-at (make-om-dash--cell :text closed-at))
@@ -1984,82 +1951,15 @@ not used. To change this, you can specify ':fields' parameter explicitly.
         (om-dash--insert-table column-names (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
 
-(define-obsolete-function-alias
-  'org-dblock-write:om-dash-github
-  'org-dblock-write:om-dash-github-topics "0.3")
-
-(defun org-dblock-write:om-dash-github-project-cards (params)
-  "Builds org heading with a table of github 'classic' project cards.
-
-Note: if you're using new github projects (a.k.a. projects v2, a.k.a projects beta),
-which are currently default, then use 'om-dash-github-project-items' instead.
-
-Usage example:
-  #+BEGIN: om-dash-github-project-cards :repo \"owner/repo\" :type issue :project 123 :column \"name\"
-  ...
-  #+END:
-
-Parameters:
-
-| parameter      | default                  | description                            |
-|----------------+--------------------------+----------------------------------------|
-| :repo          | required                 | github repo in form “<owner>/<repo>“   |
-| :type          | required                 | topic type ('issue', 'pullreq', 'any') |
-| :state         | 'open'                   | topic state ('open', 'closed', 'any')  |
-| :project       | required                 | project identifier (number)            |
-| :column        | required                 | project column name (string)           |
-| :table-columns | 'om-dash-github-columns' | list of columns to display             |
-| :headline      | auto                     | text for generated org heading         |
-| :heading-level | auto                     | level for generated org heading        |
-
-':type' defines that types of cards to display: issues, pull requests, or all.
-':state' defines whether to display open and closed issues and pull requests.
-
-':project' field specifies project numeric identifier (you can see it in URL on github).
-':column' field specifies string name of a project column.
-"
-  ;; expand template
-  (setq params
-        (om-dash--expand-template params))
-  ;; parse args
-  (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
-         (type (or (plist-get params :type) (error "om-dash: missing :type")))
-         (state (or (plist-get params :state) 'open))
-         (project (or (plist-get params :project) (error "om-dash: missing :project")))
-         (column (or (plist-get params :column) (error "om-dash: missing :column")))
-         (query (om-dash--github-q-classic-project-column params))
-         (table-columns (or (plist-get params :table-columns)
-                            om-dash-github-columns))
-         (headline (or (plist-get params :headline)
-                       (format "%s (%s \"%s\")"
-                               (om-dash--github-format-headline type)
-                               repo
-                               column)))
-         (heading-level (or (plist-get params :heading-level)
-                            (om-dash--choose-level))))
-    ;; query topics
-    (org-dblock-write:om-dash-github-topics
-     (append
-      (list :repo repo
-            :type type
-            :table-columns table-columns
-            :headline headline
-            :heading-level heading-level)
-      (pcase state
-        (`any `(:any ,query))
-        (`open `(:open ,query :closed ""))
-        (`closed `(:open "" :closed ,query)))))))
-
 (defun om-dash-github:milestone (params)
   "This template is OBSOLETE.
-Use 'om-dash-github-topics' with ':milestone' query instead.
+Use 'om-dash-github' with ':milestone' query instead.
 "
   ;; parse args
   (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
          (type (or (plist-get params :type) (error "om-dash: missing :type")))
          (state (or (plist-get params :state) 'open))
          (milestone (or (plist-get params :milestone) (error "om-dash: missing :milestone")))
-         (query (om-dash--github-q-milestone params))
          (headline (or (plist-get params :headline)
                        (format "%s (%s \"%s\")"
                                (om-dash--github-format-headline type)
@@ -2067,22 +1967,25 @@ Use 'om-dash-github-topics' with ':milestone' query instead.
                                milestone)))
          (heading-level (or (plist-get params :heading-level)
                             (om-dash--choose-level))))
-    ;; return modified parameters
-    (append
-     (list :headline headline
-           :heading-level heading-level)
-     (pcase state
-       (`any `(:any ,query))
-       (`open `(:open ,query :closed ""))
-       (`closed `(:open "" :closed ,query))))))
+    ;; build query
+    (let ((query
+           (om-dash--github-q-milestone (list :milestone milestone))))
+      ;; return modified parameters
+      (append
+       (list :headline headline
+             :heading-level heading-level)
+       (pcase state
+         (`any `(:any ,query))
+         (`open `(:open ,query :closed ""))
+         (`closed `(:open "" :closed ,query)))))))
 
 (make-obsolete
  'om-dash-github:milestone
- 'org-dblock-write:om-dash-github-topics "0.3")
+ 'org-dblock-write:om-dash-github "0.3")
 
 (defun om-dash-github:project-column (params)
   "This template is OBSOLETE.
-Use 'om-dash-github-project-items' or 'om-dash-github-project-cards' dynamic blocks instead.
+Use 'om-dash-github' with ':project-status' query instead.
 "
   ;; parse args
   (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
@@ -2090,7 +1993,6 @@ Use 'om-dash-github-project-items' or 'om-dash-github-project-cards' dynamic blo
          (state (or (plist-get params :state) 'open))
          (project (or (plist-get params :project) (error "om-dash: missing :project")))
          (column (or (plist-get params :column) (error "om-dash: missing :column")))
-         (query (om-dash--github-q-classic-project-column params))
          (headline (or (plist-get params :headline)
                        (format "%s (%s \"%s\")"
                                (om-dash--github-format-headline type)
@@ -2098,18 +2000,25 @@ Use 'om-dash-github-project-items' or 'om-dash-github-project-cards' dynamic blo
                                column)))
          (heading-level (or (plist-get params :heading-level)
                             (om-dash--choose-level))))
-    ;; return modified parameters
-    (append
-     (list :headline headline
-           :heading-level heading-level)
-     (pcase state
-       (`any `(:any ,query))
-       (`open `(:open ,query :closed ""))
-       (`closed `(:open "" :closed ,query))))))
+    ;; build query
+    (let ((query
+           (om-dash--github-q-project
+            (list :repo repo
+                  :project project
+                  :project-type 'classic
+                  :project-status column))))
+      ;; return modified parameters
+      (append
+       (list :headline headline
+             :heading-level heading-level)
+       (pcase state
+         (`any `(:any ,query))
+         (`open `(:open ,query :closed ""))
+         (`closed `(:open "" :closed ,query)))))))
 
 (make-obsolete
  'om-dash-github:project-column
- 'org-dblock-write:om-dash-github-project-cards "0.3")
+ 'org-dblock-write:om-dash-github "0.3")
 
 (defun om-dash--orgfile-q-nth-parent (depth pred)
   "Build org-ql query that applies predicate to nth parent."
@@ -2638,6 +2547,139 @@ unset when both parameter is omitted and variable is nil.
         (om-dash--insert-table column-names (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
 
+(defun org-dblock-write:om-dash-command (params)
+  "Builds org heading with a table from output of a shell command.
+
+Usage example:
+  #+BEGIN: om-dash-command :command \"curl -s https://api.github.com/users/octocat/repos\" :format json :columns (\"name\" \"forks_count\")
+  ...
+  #+END:
+
+| parameter      | default  | description                             |
+|----------------+----------+-----------------------------------------|
+| :command       | required | shell command to run                    |
+| :columns       | required | column names (list of strings)          |
+| :format        | 'json'   | command output format ('json' or 'csv') |
+| :headline      | auto     | text for generated org heading          |
+| :heading-level | auto     | level for generated org heading         |
+
+If ':format' is 'json', command output should be a JSON array of
+JSON objects, which have a value for every key from ':columns'.
+
+If ':format' is 'csv', command output should be CSV. First column
+of CSV becomes value of first column from ':columns', and so on.
+
+Note: using CSV format requires installing 'parse-csv' package
+from https://github.com/mrc/el-csv
+"
+  ;; expand template
+  (setq params
+        (om-dash--expand-template params))
+  ;; parse params
+  (let* ((command (or (plist-get params :command)
+                      (error "om-dash: missing :command")))
+         (format (or (plist-get params :format) 'json))
+         (columns (or (plist-get params :columns)
+                      (error "om-dash: missing :columns")))
+         (headline (or (plist-get params :headline)
+                       (file-name-nondirectory
+                        (car (split-string-shell-command command)))))
+         (heading-level (or (plist-get params :heading-level)
+                            (om-dash--choose-level))))
+    ;; run command
+    (let* ((raw-output (om-dash--shell-run command t))
+           (table (pcase format
+                    (`json (om-dash--parse-json columns raw-output))
+                    (`csv (om-dash--parse-csv columns raw-output))
+                    (_ (error "om-dash: bad :format %S" format))))
+           (is-todo (om-dash--table-todo-p table)))
+      (om-dash--insert-heading (om-dash--choose-keyword is-todo)
+                               headline heading-level)
+      (when table
+        (om-dash--insert-table columns table heading-level))
+      (om-dash--remove-empty-line))))
+
+(defun org-dblock-write:om-dash-function (params)
+  "Builds org heading with a table from output of a elisp function.
+
+Usage example:
+  #+BEGIN: om-dash-function :func example-func
+  ...
+  #+END:
+
+| parameter      | default  | description                     |
+|----------------+----------+---------------------------------|
+| :func          | required | elisp function to call          |
+| :args          | nil      | optional function arguments     |
+| :headline      | auto     | text for generated org heading  |
+| :heading-level | auto     | level for generated org heading |
+
+The function should return a list of tables, where each table is
+a 'plist' with the following properties:
+
+| property      | default  | description                                          |
+|---------------+----------+------------------------------------------------------|
+| :keyword      | 'TODO'   | keyword for generated org heading                    |
+| :headline     | auto     | text for generated org heading                       |
+| :level        | auto     | level for generated org heading                      |
+| :column-names | required | list of column names (strings)                       |
+| :rows         | required | list of rows, where row is a list of cells (strings) |
+
+If ':headline' or ':heading-level' is provided as the block parameter, it overrides
+':headline' or ':level' returned from function.
+
+Example function that returns a single 2x2 table:
+
+  (defun example-func ()
+    ;; list of tables
+    (list
+     ;; table plist
+     (list :keyword \"TODO\"
+           :headline \"example table\"
+           :column-names '(\"foo\" \"bar\")
+           :rows '((\"a\" \"b\")
+                   (\"c\" \"d\")))))
+"
+  ;; expand template
+  (setq params
+        (om-dash--expand-template params))
+  ;; parse params
+  (let* ((function (or (plist-get params :func)
+                       (error "om-dash: missing :func")))
+         (args (plist-get params :args))
+         (default-keyword (om-dash--choose-keyword nil))
+         (forced-headline (or (plist-get params :headline)
+                              (symbol-name function)))
+         (forced-level (or (plist-get params :heading-level)
+                           (om-dash--choose-level))))
+    ;; run function and build table
+    (dolist (table-plist (apply function args))
+      (let* ((keyword (or (plist-get table-plist :keyword)
+                          default-keyword))
+             (headline (or forced-headline
+                           (plist-get table-plist :headline)))
+             (heading-level (or forced-level
+                                (plist-get table-plist :level)))
+             (column-names (or (plist-get table-plist :column-names)
+                               (error "om-dash: missing :column-names")))
+             (rows (or (plist-get table-plist :rows)
+                       (error "om-dash: missing :rows")))
+             table)
+        (dolist (row rows)
+          (push
+           (seq-map (lambda (cell-text)
+                      (if-let ((link (om-dash--parse-link cell-text)))
+                          (make-om-dash--cell :text (car link) :link (cdr link))
+                        (make-om-dash--cell :text cell-text)))
+                    row)
+           table))
+        (om-dash--insert-heading keyword
+                                 headline
+                                 heading-level)
+        (when table
+          (om-dash--insert-table column-names (nreverse table) heading-level))
+        (om-dash--remove-empty-line)))))
+
 (defun org-dblock-write:om-dash--readme-toc (params)
   "Dynamic block to insert table of contents into README."
   (let* ((file (buffer-file-name))
@@ -2928,14 +2970,14 @@ org tables generated by om-dash dynamic blocks.
 Things that are highlighted:
  - table header and cell (text and background)
  - org-mode keywords
- - issue or pull request state, number, author
+ - issue or pull request state, number, author, etc.
  - tags
 
 After editing keywords list, you need to reactivate minor mode for
 changes to take effect.
 
-To active this mode automatically for specific files, you can use
-local variables (add this to the end of the file):
+To activate this mode automatically for specific files, you can use
+local variables, e.g. add this to the end of the file:
 
   # Local Variables:
   # eval: (om-dash-mode 1)
