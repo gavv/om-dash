@@ -432,10 +432,14 @@ You can use it so specify cell font."
   "Face used for issue or pull request numbers in om-dash tables."
    :group 'om-dash-faces)
 
-(defface om-dash-author
+(defface om-dash-username
   '((t (:inherit org-document-info)))
-  "Face used for issue or pull request authors in om-dash tables."
-   :group 'om-dash-faces)
+  "Face used for github usernames in om-dash tables."
+  :group 'om-dash-faces)
+
+(define-obsolete-face-alias
+  'om-dash-author
+  'om-dash-username "0.3")
 
 (defface om-dash-todo-keyword
   '((t (:inherit org-todo :weight normal)))
@@ -1680,10 +1684,6 @@ Example function that returns a single 2x2 table:
       (`any "issues and pull requests")
       (_ (error "om-dash: bad type %S" type)))))
 
-(define-obsolete-function-alias
-  'org-dblock-write:om-dash-github
-  'org-dblock-write:om-dash-github-topics "0.3")
-
 (defun org-dblock-write:om-dash-github-topics (params)
   "Builds org heading with a table of github issues or pull requests.
 
@@ -1983,6 +1983,10 @@ not used. To change this, you can specify ':fields' parameter explicitly.
       (when table
         (om-dash--insert-table column-names (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
+
+(define-obsolete-function-alias
+  'org-dblock-write:om-dash-github
+  'org-dblock-write:om-dash-github-topics "0.3")
 
 (defun org-dblock-write:om-dash-github-project-cards (params)
   "Builds org heading with a table of github 'classic' project cards.
@@ -2773,9 +2777,14 @@ the function updates all blocks inside 1.1, 1.1.1, 1.1.2."
   "#[0-9]+\\|\\[\\[[^] \t\n]+\\]\\[#[0-9]+\\]\\]"
   "Matches github issue or pr number.")
 
-(defconst om-dash--author-regexp
-  "@[[:alnum:]_-]+\\|\\[\\[[^] \t\n]+\\]\\[@[[:alnum:]_-]+\\]\\]"
-  "Matches github issue or pr author.")
+(defconst om-dash--username-regexp
+  "@[[:alnum:]_-]+"
+  "Matches github username.")
+
+(defconst om-dash--userlist-regexp
+  (s-concat om-dash--username-regexp
+            "\\(," om-dash--username-regexp "\\)*")
+  "Matches list of github usernames.")
 
 (defconst om-dash--tagline-regexp
   "\\(:[[:alnum:]_@#%:]+\\)+:"
@@ -2897,12 +2906,12 @@ Assumes that om-dash--table-field-p returned true."
                  ((om-dash--cellp om-dash--keyword-regexp)
                   (om-dash--fontify text-beg text-end
                                     (om-dash--choose-face text)))
-                 ;; pr or issue number (#123)
+                 ;; github pr or issue number (#123)
                  ((om-dash--cellp om-dash--number-regexp)
                   (om-dash--fontify text-beg text-end 'om-dash-number))
-                 ;; pr or issue author (@abc)
-                 ((om-dash--cellp om-dash--author-regexp)
-                  (om-dash--fontify text-beg text-end 'om-dash-author))
+                 ;; github username list (@abc[,@abc,...])
+                 ((om-dash--cellp om-dash--userlist-regexp)
+                  (om-dash--fontify text-beg text-end 'om-dash-username))
                  ;; tagline (:tag1:tag2:)
                  ((om-dash--cellp om-dash--tagline-regexp)
                   (om-dash--fontify-tagline text-beg text-end))

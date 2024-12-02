@@ -1160,9 +1160,9 @@ You can use it so specify cell font.
 Face used for issue or pull request numbers in om-dash tables.
 #+END:
 
-#+BEGIN: om-dash--readme-symbol :symbol om-dash-author
-*** om-dash-author
-Face used for issue or pull request authors in om-dash tables.
+#+BEGIN: om-dash--readme-symbol :symbol om-dash-username
+*** om-dash-username
+Face used for github usernames in om-dash tables.
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-todo-keyword
