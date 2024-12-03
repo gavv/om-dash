@@ -190,23 +190,25 @@ E.g. used for github columns like :created-at, :updated-at, etc.")
 
 Supported values:
 
-| symbol          | example           |
-|-----------------+-------------------|
-| :state          | OPEN, CLOSED, ... |
-| :number         | #123              |
-| :title          | text              |
-| :title-link     | [[link][text]]    |
-| :milestone      | 1.2.3             |
-| :tags           | :tag1:tag2:...:   |
-| :author         | @octocat          |
-| :assignee       | @octocat,@github  |
-| :reviewer       | @octocat,@github  |
-| :project        | text              |
-| :project-status | text              |
-| :created-at     | date              |
-| :updated-at     | date              |
-| :closed-at      | date              |
-| :merged-at      | date              |
+| symbol                  | example           |
+|-------------------------+-------------------|
+| :state                  | OPEN, CLOSED, ... |
+| :number                 | #123              |
+| :title                  | text              |
+| :title-link             | [[link][text]]    |
+| :milestone              | 1.2.3             |
+| :tags                   | :tag1:tag2:...:   |
+| :author                 | @octocat          |
+| :assignee               | @octocat,@github  |
+| :reviewer               | @octocat,@github  |
+| :project                | text              |
+| :project-status         | text              |
+| :classic-project        | text              |
+| :classic-project-status | text              |
+| :created-at             | date              |
+| :updated-at             | date              |
+| :closed-at              | date              |
+| :merged-at              | date              |
 ")
 
 (defvar om-dash-orgfile-columns
@@ -996,15 +998,16 @@ Join resulting list into one string using a separator and return result."
 
 (defun om-dash--github-build-extra-fields (table-columns)
   "Determine what additional github fields to we need to request."
-  (apply 'append
-         (seq-remove
-          'not (list
-                (when (seq-contains table-columns :reviewer)
-                  '("reviewRequests"))
-                (when (or (seq-contains table-columns :project)
-                          (seq-contains table-columns :project-status))
-                  '("projectItems"
-                    "projectCards"))))))
+  (seq-remove
+   'not (list
+         (when (seq-contains table-columns :reviewer)
+           "reviewRequests")
+         (when (or (seq-contains table-columns :project)
+                   (seq-contains table-columns :project-status))
+           "projectItems")
+         (when (or (seq-contains table-columns :classic-project)
+                   (seq-contains table-columns :classic-project-status))
+           "projectCards"))))
 
 (defun om-dash--github-read-topics (repo type any-filter open-filter closed-filter
                                          sort-by fields table-columns limit)
@@ -1416,12 +1419,11 @@ Join resulting list into one string using a separator and return result."
     (list nil jq-selector)))
 
 (defun om-dash--github-q-project (params)
-  "Build query for :project, :project-status :no-project-status"
+  "Build query for :project, :project-type, :project-status :no-project-status"
   (let* ((repo (plist-get params :repo))
          (owner (car (s-split "/" repo)))
-         (project (if-let ((param (plist-get params :project)))
-                      (cond ((listp param) param)
-                            (t (list 'v2 param)))))
+         (project (plist-get params :project))
+         (project-type (or (plist-get params :project-type) 'v2))
          (match-status (if-let ((param (plist-get params :project-status)))
                              (cond ((listp param) param)
                                    (t (list param)))))
@@ -1433,32 +1435,32 @@ Join resulting list into one string using a separator and return result."
           (when project
             ;; only include topics with specified project
             (format "project:%s/%s"
-                    (pcase (car project)
+                    (pcase project-type
                       (`v2 owner)
                       (`classic repo)
                       (_ (error "om-dash: bad project type %S" project-type)))
-                    (cadr project))))
+                    project)))
          (jq-selector
           (om-dash--join
            " and "
            ;; :project-status
+           (om-dash--join
+            " or "
+            (seq-map (lambda (status)
+                       (pcase project-type
+                         ;; only include topics with specified status name
+                         (`v2
+                          (format "any(.projectItems[]; .status.name == \"%s\")"
+                                  (om-dash--gh-quote-arg status)))
+                         ;; only include topics with specified column name
+                         (`classic
+                          (format "any(.projectCards[]; .column.name == \"%s\")"
+                                  (om-dash--gh-quote-arg status)))
+                         (_
+                          (error "om-dash: bad project type %S" project-type))))
+                     match-status))
            (seq-map (lambda (status)
-                      (unless project
-                        (error "om-dash: missing :project"))
-                      (pcase (car project)
-                        ;; only include topics with specified status name
-                        (`v2
-                         (format "any(.projectItems[]; .status.name == \"%s\")"
-                                 (om-dash--gh-quote-arg status)))
-                        ;; only include topics with specified column name
-                        (`classic
-                         (format "any(.projectCards[]; .column.name == \"%s\")"
-                                 (om-dash--gh-quote-arg status)))))
-                    match-status)
-           (seq-map (lambda (status)
-                      (unless project
-                        (error "om-dash: missing :project"))
-                      (pcase (car project)
+                      (pcase project-type
                         ;; exclude topics with specified status name
                         (`v2
                          (format "all(.projectItems[]; .status.name != \"%s\")"
@@ -1466,7 +1468,9 @@ Join resulting list into one string using a separator and return result."
                         ;; exclude  topics with specified column name
                         (`classic
                          (format "all(.projectCards[]; .column.name != \"%s\")"
-                                 (om-dash--gh-quote-arg status)))))
+                                 (om-dash--gh-quote-arg status)))
+                         (_
+                          (error "om-dash: bad project type %S" project-type))))
                     ignore-status))))
     (list gh-query jq-selector)))
 
@@ -1582,33 +1586,41 @@ Join resulting list into one string using a separator and return result."
     (when reviewer-list
       (s-join "," reviewer-list))))
 
-(defun om-dash--github-format-project (json)
-  "Format project name(s)."
-  (when-let ((project-list
-              (seq-uniq
-               (if-let ((project-items (cdr (assoc 'projectItems json))))
-                   (seq-map (lambda (item)
-                              (cdr (assoc 'title item)))
-                            project-items)
-                 (if-let ((project-cards (cdr (assoc 'projectCards json))))
-                     (seq-map (lambda (card)
-                                (cdr (assoc 'name (cdr (assoc 'project card)))))
-                              project-cards))))))
-    (s-join ", " project-list)))
+(defun om-dash--github-format-v2-project (json)
+  "Format v2 project name(s) and project status(es) associated with topic."
+  (when-let ((project-items (cdr (assoc 'projectItems json))))
+    (let* ((project-list
+            (seq-remove 's-blank-p
+                        (seq-uniq (seq-map (lambda (item)
+                                             (cdr (assoc 'title item)))
+                                           project-items))))
+           (status-list
+            (seq-remove 's-blank-p
+                        (seq-uniq (seq-map (lambda (item)
+                                             (cdr (assoc 'name (cdr (assoc 'status item)))))
+                                           project-items)))))
+      (list (when project-list
+              (s-join ", " project-list))
+            (when status-list
+              (s-join ", " status-list))))))
 
-(defun om-dash--github-format-project-status (json)
-  "Format project status name(s)."
-  (when-let ((status-list
-              (seq-uniq
-               (if-let ((project-items (cdr (assoc 'projectItems json))))
-                   (seq-map (lambda (item)
-                              (cdr (assoc 'name (cdr (assoc 'status item)))))
-                            project-items)
-                 (if-let ((project-cards (cdr (assoc 'projectCards json))))
-                     (seq-map (lambda (card)
-                                (cdr (assoc 'name (cdr (assoc 'column card)))))
-                              project-cards))))))
-    (s-join ", " status-list)))
+(defun om-dash--github-format-classic-project (json)
+  "Format classic project name(s) and project column(s) associated with topic."
+  (when-let ((project-cards (cdr (assoc 'projectCards json))))
+    (let* ((project-list
+            (seq-remove 's-blank-p
+                        (seq-uniq (seq-map (lambda (item)
+                                             (cdr (assoc 'name (cdr (assoc 'project item)))))
+                                           project-cards))))
+           (column-list
+            (seq-remove 's-blank-p
+                        (seq-uniq (seq-map (lambda (item)
+                                             (cdr (assoc 'name (cdr (assoc 'column item)))))
+                                           project-cards)))))
+      (list (when project-list
+              (s-join ", " project-list))
+            (when column-list
+              (s-join ", " column-list))))))
 
 (defun om-dash--github-format-timestamp (date)
   "Re-format github timestamp."
@@ -1708,6 +1720,7 @@ use cases. The query should be a 'plist' with the following properties:
 | :review-status     | include only topics with any of given review status(es)  |
 | :no-review-status  | exclude topics with any of given review status(es)       |
 | :project           | include only topics added to given project               |
+| :project-type      | choose between v2 and classic project                    |
 | :project-status    | include only topics with any of given project status(es) |
 | :no-project-status | exclude topics with any of given project status(es)      |
 | :created-at        | include only topics created within given date range      |
@@ -1761,23 +1774,17 @@ Note that not all statuses are mutually exclusive, in particular 'required' can
 co-exist with any status except 'undecided', and 'commented' can co-exist with
 any other status. You can match multiple statuses by providing a list.
 
-':project' property can have one of the two forms:
- - number
- - (type number)
-
-Here, number is project id (you can see it in url), and optional type is either 'v2'
-or 'classic'. (Classic projects are deprecated by GitHub but are still in use). If
-type is omitted, 'v2' is assumed.
+':project' defines numeric identifier of the 'v2' or 'classic' github project (you can
+see identifier in the url). By default, 'v2' is assumed, but you can change type
+using ':project-type' property.
 
 ':project-status' can be a string or a list of strings. For 'v2' projects, it matches
 “status“ field of the project item, which corresponds to column name if board view of
 the project. For 'classic' projects, it matches “column“ property of the project card.
 
-If you use ':project-status', you should alsp specify ':project'.
-
 Examples:
   :project 5 :project-status \"In work\"
-  :project (classic 2) :project-status (\"Backlog\" \"On hold\")
+  :project 2 :project-type classic :project-status (\"Backlog\" \"On hold\")
 
 ':created-at', ':updated-at', ':closed-at', ':merged-at' can have one of this forms:
  - \"TIMESTAMP\"
@@ -1896,8 +1903,8 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                          (`:author "author")
                          (`:assignee "assignee")
                          (`:reviewer "reviewer")
-                         (`:project "project")
-                         (`:project-status "status")
+                         ((or `:project `:classic-project) "project")
+                         ((or `:project-status `:classic-project-status) "status")
                          (`:created-at "created")
                          (`:updated-at "updated")
                          (`:closed-at "closed")
@@ -1917,8 +1924,8 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                       (author (format "@%s" (cdr (assoc 'login (cdr (assoc 'author json))))))
                       (assignee (om-dash--github-format-assignee json))
                       (reviewer (om-dash--github-format-reviewer json))
-                      (project (om-dash--github-format-project json))
-                      (project-status (om-dash--github-format-project-status json))
+                      (v2-project (om-dash--github-format-v2-project json))
+                      (classic-project (om-dash--github-format-classic-project json))
                       (title (cdr (assoc 'title json)))
                       (url (cdr (assoc 'url json)))
                       (created-at (om-dash--github-format-timestamp
@@ -1943,8 +1950,11 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                                 (`:author (make-om-dash--cell :text author))
                                 (`:assignee (make-om-dash--cell :text assignee))
                                 (`:reviewer (make-om-dash--cell :text reviewer))
-                                (`:project (make-om-dash--cell :text project))
-                                (`:project-status (make-om-dash--cell :text project-status))
+                                (`:project (make-om-dash--cell :text (car v2-project)))
+                                (`:project-status (make-om-dash--cell :text (cadr v2-project)))
+                                (`:classic-project (make-om-dash--cell :text (car classic-project)))
+                                (`:classic-project-status (make-om-dash--cell
+                                                           :text (cadr classic-project)))
                                 (`:created-at (make-om-dash--cell :text created-at))
                                 (`:updated-at (make-om-dash--cell :text updated-at))
                                 (`:closed-at (make-om-dash--cell :text closed-at))
@@ -2655,18 +2665,18 @@ Example function that returns a single 2x2 table:
                        (error "om-dash: missing :func")))
          (args (plist-get params :args))
          (default-keyword (om-dash--choose-keyword nil))
-         (forced-headline (or (plist-get params :headline)
-                              (symbol-name function)))
-         (forced-level (or (plist-get params :heading-level)
-                           (om-dash--choose-level))))
+         (forced-headline (plist-get params :headline))
+         (forced-level (plist-get params :heading-level)))
     ;; run function and build table
     (dolist (table-plist (apply function args))
       (let* ((keyword (or (plist-get table-plist :keyword)
                           default-keyword))
              (headline (or forced-headline
-                           (plist-get table-plist :headline)))
+                           (plist-get table-plist :headline)
+                           (symbol-name function)))
              (heading-level (or forced-level
-                                (plist-get table-plist :level)))
+                                (plist-get table-plist :level)
+                                (om-dash--choose-level)))
              (column-names (or (plist-get table-plist :column-names)
                                (error "om-dash: missing :column-names")))
              (rows (or (plist-get table-plist :rows)

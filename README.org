@@ -412,6 +412,7 @@ use cases. The query should be a =plist= with the following properties:
 | :review-status     | include only topics with any of given review status(es)  |
 | :no-review-status  | exclude topics with any of given review status(es)       |
 | :project           | include only topics added to given project               |
+| :project-type      | choose between v2 and classic project                    |
 | :project-status    | include only topics with any of given project status(es) |
 | :no-project-status | exclude topics with any of given project status(es)      |
 | :created-at        | include only topics created within given date range      |
@@ -469,24 +470,18 @@ Note that not all statuses are mutually exclusive, in particular =required= can
 co-exist with any status except =undecided=, and =commented= can co-exist with
 any other status. You can match multiple statuses by providing a list.
 
-=:project= property can have one of the two forms:
- - number
- - (type number)
-
-Here, number is project id (you can see it in url), and optional type is either =v2=
-or =classic=. (Classic projects are deprecated by GitHub but are still in use). If
-type is omitted, =v2= is assumed.
+=:project= defines numeric identifier of the =v2= or =classic= github project (you can
+see identifier in the url). By default, =v2= is assumed, but you can change type
+using =:project-type= property.
 
 =:project-status= can be a string or a list of strings. For =v2= projects, it matches
 “status“ field of the project item, which corresponds to column name if board view of
 the project. For =classic= projects, it matches “column“ property of the project card.
 
-If you use =:project-status=, you should alsp specify =:project=.
-
 Examples:
 #+BEGIN_EXAMPLE
   :project 5 :project-status "In work"
-  :project (classic 2) :project-status ("Backlog" "On hold")
+  :project 2 :project-type classic :project-status ("Backlog" "On hold")
 #+END_EXAMPLE
 
 =:created-at=, =:updated-at=, =:closed-at=, =:merged-at= can have one of this forms:
@@ -952,23 +947,25 @@ Column list for =om-dash-github= tables.
 
 Supported values:
 
-| symbol          | example           |
-|-----------------+-------------------|
-| :state          | OPEN, CLOSED, ... |
-| :number         | #123              |
-| :title          | text              |
-| :title-link     | [​[link][text]]    |
-| :milestone      | 1.2.3             |
-| :tags           | :tag1:tag2:...:   |
-| :author         | @octocat          |
-| :assignee       | @octocat,@github  |
-| :reviewer       | @octocat,@github  |
-| :project        | text              |
-| :project-status | text              |
-| :created-at     | date              |
-| :updated-at     | date              |
-| :closed-at      | date              |
-| :merged-at      | date              |
+| symbol                  | example           |
+|-------------------------+-------------------|
+| :state                  | OPEN, CLOSED, ... |
+| :number                 | #123              |
+| :title                  | text              |
+| :title-link             | [​[link][text]]    |
+| :milestone              | 1.2.3             |
+| :tags                   | :tag1:tag2:...:   |
+| :author                 | @octocat          |
+| :assignee               | @octocat,@github  |
+| :reviewer               | @octocat,@github  |
+| :project                | text              |
+| :project-status         | text              |
+| :classic-project        | text              |
+| :classic-project-status | text              |
+| :created-at             | date              |
+| :updated-at             | date              |
+| :closed-at              | date              |
+| :merged-at              | date              |
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-orgfile-columns
