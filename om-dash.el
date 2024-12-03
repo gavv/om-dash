@@ -2533,10 +2533,10 @@ unset when both parameter is omitted and variable is nil.
            (entries
             (om-dash--imap-folder-stats host port machine user password stream auth folder))
            (todo-p
-            (seq-count (lambda (entry)
-                         (not (string= (plist-get entry :state)
-                                       "CLEAN")))
-                       entries))
+            (< 0 (seq-count (lambda (entry)
+                              (not (string= (plist-get entry :state)
+                                            "CLEAN")))
+                            entries)))
            table)
       (dolist (entry entries)
         (let* ((state (plist-get entry :state))
