@@ -88,7 +88,7 @@ Display all open issues with "user report" label and without assignee.
 
 *** Github project
 
-Display all open issues from github project 5 with from columns "In work" and "On hold".
+Display all open issues added to github project with id 5, from columns "In work" and "On hold".
 
 #+BEGIN_EXAMPLE
 ,#+BEGIN: om-dash-github :repo "roc-streaming/roc-toolkit" :type issue :open (:project 5 :project-status ("In work" "On hold"))
