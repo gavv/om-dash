@@ -179,7 +179,7 @@ Allowed values:
 
 (defvar om-dash-table-time-format "%a, %d %b %Y"
   "Format for 'format-time-string' used for times in tables.
-E.g. used for :created-at, :updated-at, :closed-at github columns.")
+E.g. used for github columns like :created-at, :updated-at, etc.")
 
 (defvar om-dash-github-columns
   '(:state
@@ -206,6 +206,7 @@ Supported values:
 | :created-at     | date              |
 | :updated-at     | date              |
 | :closed-at      | date              |
+| :merged-at      | date              |
 ")
 
 (defvar om-dash-orgfile-columns
@@ -1046,54 +1047,6 @@ Join resulting list into one string using a separator and return result."
       (dolist (out gh-outputs)
         (delete-file out)))))
 
-(defun om-dash--github-q-timestamp (params)
-  "Build queries for :created-at, :updated-at, :closed-at"
-  (let* ((created-at (plist-get params :created-at))
-         (updated-at (plist-get params :updated-at))
-         (closed-at (plist-get params :closed-at))
-         (gh-query
-          (om-dash--join
-           ;; note: space-separated "created:", "updated:", and "closed:"
-           ;;       github queries are ANDed
-           " " (cl-mapcar
-                (lambda (name query)
-                  (cond
-                   ;; string, e.g. "2024-02-20" or "-100d"
-                   ((stringp query)
-                    (let ((timestamp (or (om-dash--parse-reltime query)
-                                         query)))
-                      (format "%s:%s" name timestamp)))
-                   ;; 2-element list, e.g. (> "2024-02-20")
-                   ((and (listp query) (eq (length query) 2))
-                    (let ((operator (nth 0 query))
-                          (timestamp (or (om-dash--parse-reltime (nth 1 query))
-                                         (nth 1 query))))
-                      (pcase operator
-                        (`> (format "%s:>%s" name timestamp))
-                        (`>= (format "%s:>=%s" name timestamp))
-                        (`< (format "%s:<%s" name timestamp))
-                        (`<= (format "%s:<=%s" name timestamp))
-                        (_ (error "om-dash: bad :%s-at" name)))))
-                   ;; 3-element list, e.g. (range "2024-01-01" "2024-02-20")
-                   ((and (listp query) (eq (length query) 3))
-                    (let ((operator (nth 0 query))
-                          (timestamp-1 (or (om-dash--parse-reltime (nth 1 query))
-                                           (nth 1 query)))
-                          (timestamp-2 (or (om-dash--parse-reltime (nth 2 query))
-                                           (nth 2 query))))
-                      (pcase operator
-                        (`range (format "%s:%s..%s" name timestamp-1 timestamp-2))
-                        (_ (error "om-dash: bad :%s-at" name)))))
-                   ;; not given
-                   ((not query)
-                    nil)
-                   ;; unrecognized
-                   (t
-                    (error "om-dash: bad :%s-at" name))))
-                (list "created" "updated" "closed")
-                (list created-at updated-at closed-at)))))
-    (list gh-query nil)))
-
 (defun om-dash--github-q-milestone (params)
   "Build queries for :milestone and :no-milestone"
   (let* ((match-list (if-let ((param (plist-get params :milestone)))
@@ -1517,6 +1470,55 @@ Join resulting list into one string using a separator and return result."
                     ignore-status))))
     (list gh-query jq-selector)))
 
+(defun om-dash--github-q-timestamp (params)
+  "Build queries for :created-at, :updated-at, :closed-at, :merged-at"
+  (let* ((created-at (plist-get params :created-at))
+         (updated-at (plist-get params :updated-at))
+         (closed-at (plist-get params :closed-at))
+         (merged-at (plist-get params :merged-at))
+         (gh-query
+          (om-dash--join
+           ;; note: space-separated "created:", "updated:", and "closed:"
+           ;;       github queries are ANDed
+           " " (cl-mapcar
+                (lambda (name query)
+                  (cond
+                   ;; string, e.g. "2024-02-20" or "-100d"
+                   ((stringp query)
+                    (let ((timestamp (or (om-dash--parse-reltime query)
+                                         query)))
+                      (format "%s:%s" name timestamp)))
+                   ;; 2-element list, e.g. (> "2024-02-20")
+                   ((and (listp query) (eq (length query) 2))
+                    (let ((operator (nth 0 query))
+                          (timestamp (or (om-dash--parse-reltime (nth 1 query))
+                                         (nth 1 query))))
+                      (pcase operator
+                        (`> (format "%s:>%s" name timestamp))
+                        (`>= (format "%s:>=%s" name timestamp))
+                        (`< (format "%s:<%s" name timestamp))
+                        (`<= (format "%s:<=%s" name timestamp))
+                        (_ (error "om-dash: bad :%s-at" name)))))
+                   ;; 3-element list, e.g. (range "2024-01-01" "2024-02-20")
+                   ((and (listp query) (eq (length query) 3))
+                    (let ((operator (nth 0 query))
+                          (timestamp-1 (or (om-dash--parse-reltime (nth 1 query))
+                                           (nth 1 query)))
+                          (timestamp-2 (or (om-dash--parse-reltime (nth 2 query))
+                                           (nth 2 query))))
+                      (pcase operator
+                        (`range (format "%s:%s..%s" name timestamp-1 timestamp-2))
+                        (_ (error "om-dash: bad :%s-at" name)))))
+                   ;; not given
+                   ((not query)
+                    nil)
+                   ;; unrecognized
+                   (t
+                    (error "om-dash: bad :%s-at" name))))
+                (list "created" "updated" "closed" "merged")
+                (list created-at updated-at closed-at merged-at)))))
+    (list gh-query nil)))
+
 (defun om-dash--github-build-query (params plist)
   "Build gh and jq queries from plist."
   (let* (;; build sub-queries for all supported parameters
@@ -1527,14 +1529,14 @@ Join resulting list into one string using a separator and return result."
           (seq-map (lambda (build-func)
                      (apply build-func (append plist params) nil))
                    (list
-                    #'om-dash--github-q-timestamp
                     #'om-dash--github-q-milestone
                     #'om-dash--github-q-label
                     #'om-dash--github-q-author
                     #'om-dash--github-q-assignee
                     #'om-dash--github-q-reviewer
                     #'om-dash--github-q-review-status
-                    #'om-dash--github-q-project)))
+                    #'om-dash--github-q-project
+                    #'om-dash--github-q-timestamp)))
          ;; join all non-empty github sub-queries
          (gh-query
           (let ((query
@@ -1692,9 +1694,6 @@ use cases. The query should be a 'plist' with the following properties:
 
 | property           | description                                              |
 |--------------------+----------------------------------------------------------|
-| :created-at        | include only topics created within given date range      |
-| :updated-at        | include only topics updated within given date range      |
-| :closed-at         | include only topics closed within given date range       |
 | :milestone         | include only topics with any of given milestone(s)       |
 | :no-milestone      | exclude topics with any of given milestone(s)            |
 | :label             | include only topics with any of given label(s)           |
@@ -1711,36 +1710,16 @@ use cases. The query should be a 'plist' with the following properties:
 | :project           | include only topics added to given project               |
 | :project-status    | include only topics with any of given project status(es) |
 | :no-project-status | exclude topics with any of given project status(es)      |
+| :created-at        | include only topics created within given date range      |
+| :updated-at        | include only topics updated within given date range      |
+| :closed-at         | include only topics closed within given date range       |
+| :merged-at         | include only topics merged within given date range       |
 
 All properties are optional (but at least one should be provided). Multiple
 properties are ANDed, e.g. (:author \"bob\" :label \"bug\") matches topics with
 author “bob“ AND label “bug“. Most properties support list form, in which case
 its elements are ORed. E.g. (:author (\"bob\" \"alice\") :label \"bug\") matches
 topics with label “bug“ AND author either “bob“ OR “alice“.
-
-':created-at', ':updated-at', ':closed-at' can have one of this forms:
- - \"TIMESTAMP\"
- - (> \"TIMESTAMP\")
- - (>= \"TIMESTAMP\")
- - (< \"TIMESTAMP\")
- - (<= \"TIMESTAMP\")
- - (range \"TIMESTAMP\" \"TIMESTAMP\")
-
-Supported 'TIMESTAMP' formats:
-
-| format                      | description                 |
-|-----------------------------+-----------------------------|
-| “2024-02-20“                | date                        |
-| “2024-02-20T15:59:59Z“      | utc date and time           |
-| “2024-02-20T15:59:79+00:00“ | date and time with timezone |
-| “-10d“                      | 10 days before today        |
-| “-10w“                      | 10 weeks before today       |
-| “-10mo“                     | 10 months before today      |
-| “-10y“                      | 10 years before today       |
-
-Examples:
-  :created-at \"2024-02-20\"
-  :updated-at (>= \"-3mo\")
 
 ':milestone', ':label', ':author', ':assignee', and ':reviewer' properties, as
 well as their ':no-xxx' counterparts, can be either a string (to match one value)
@@ -1799,6 +1778,30 @@ If you use ':project-status', you should alsp specify ':project'.
 Examples:
   :project 5 :project-status \"In work\"
   :project (classic 2) :project-status (\"Backlog\" \"On hold\")
+
+':created-at', ':updated-at', ':closed-at', ':merged-at' can have one of this forms:
+ - \"TIMESTAMP\"
+ - (> \"TIMESTAMP\")
+ - (>= \"TIMESTAMP\")
+ - (< \"TIMESTAMP\")
+ - (<= \"TIMESTAMP\")
+ - (range \"TIMESTAMP\" \"TIMESTAMP\")
+
+Supported 'TIMESTAMP' formats:
+
+| format                      | description                 |
+|-----------------------------+-----------------------------|
+| “2024-02-20“                | date                        |
+| “2024-02-20T15:59:59Z“      | utc date and time           |
+| “2024-02-20T15:59:79+00:00“ | date and time with timezone |
+| “-10d“                      | 10 days before today        |
+| “-10w“                      | 10 weeks before today       |
+| “-10mo“                     | 10 months before today      |
+| “-10y“                      | 10 years before today       |
+
+Examples:
+  :created-at \"2024-02-20\"
+  :updated-at (>= \"-3mo\")
 
 'GITHUB-QUERY' is a string using github search syntax:
 https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
@@ -1898,6 +1901,7 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                          (`:created-at "created")
                          (`:updated-at "updated")
                          (`:closed-at "closed")
+                         (`:merged-at "merged")
                          (_ (error "om-dash: unknown table column %S" col))))
                      table-columns))
            table
@@ -1922,7 +1926,9 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                       (updated-at (om-dash--github-format-timestamp
                                    (cdr (assoc 'updatedAt json))))
                       (closed-at (om-dash--github-format-timestamp
-                                  (cdr (assoc 'closedAt json)))))
+                                  (cdr (assoc 'closedAt json))))
+                      (merged-at (om-dash--github-format-timestamp
+                                  (cdr (assoc 'mergedAt json)))))
                   (if (seq-contains-p (om-dash--todo-keywords) state)
                       (setq todo-p t))
                   (push
@@ -1942,6 +1948,7 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                                 (`:created-at (make-om-dash--cell :text created-at))
                                 (`:updated-at (make-om-dash--cell :text updated-at))
                                 (`:closed-at (make-om-dash--cell :text closed-at))
+                                (`:merged-at (make-om-dash--cell :text merged-at))
                                 (_ (error "om-dash: unknown table column %S" col))))
                             table-columns)
                    table)))

@@ -397,9 +397,6 @@ use cases. The query should be a =plist= with the following properties:
 
 | property           | description                                              |
 |--------------------+----------------------------------------------------------|
-| :created-at        | include only topics created within given date range      |
-| :updated-at        | include only topics updated within given date range      |
-| :closed-at         | include only topics closed within given date range       |
 | :milestone         | include only topics with any of given milestone(s)       |
 | :no-milestone      | exclude topics with any of given milestone(s)            |
 | :label             | include only topics with any of given label(s)           |
@@ -416,38 +413,16 @@ use cases. The query should be a =plist= with the following properties:
 | :project           | include only topics added to given project               |
 | :project-status    | include only topics with any of given project status(es) |
 | :no-project-status | exclude topics with any of given project status(es)      |
+| :created-at        | include only topics created within given date range      |
+| :updated-at        | include only topics updated within given date range      |
+| :closed-at         | include only topics closed within given date range       |
+| :merged-at         | include only topics merged within given date range       |
 
 All properties are optional (but at least one should be provided). Multiple
 properties are ANDed, e.g. (:author "bob" :label "bug") matches topics with
 author “bob“ AND label “bug“. Most properties support list form, in which case
 its elements are ORed. E.g. (:author ("bob" "alice") :label "bug") matches
 topics with label “bug“ AND author either “bob“ OR “alice“.
-
-=:created-at=, =:updated-at=, =:closed-at= can have one of this forms:
- - "TIMESTAMP"
- - (> "TIMESTAMP")
- - (>= "TIMESTAMP")
- - (< "TIMESTAMP")
- - (<= "TIMESTAMP")
- - (range "TIMESTAMP" "TIMESTAMP")
-
-Supported =TIMESTAMP= formats:
-
-| format                      | description                 |
-|-----------------------------+-----------------------------|
-| “2024-02-20“                | date                        |
-| “2024-02-20T15:59:59Z“      | utc date and time           |
-| “2024-02-20T15:59:79+00:00“ | date and time with timezone |
-| “-10d“                      | 10 days before today        |
-| “-10w“                      | 10 weeks before today       |
-| “-10mo“                     | 10 months before today      |
-| “-10y“                      | 10 years before today       |
-
-Examples:
-#+BEGIN_EXAMPLE
-  :created-at "2024-02-20"
-  :updated-at (>= "-3mo")
-#+END_EXAMPLE
 
 =:milestone=, =:label=, =:author=, =:assignee=, and =:reviewer= properties, as
 well as their =:no-xxx= counterparts, can be either a string (to match one value)
@@ -511,6 +486,32 @@ Examples:
 #+BEGIN_EXAMPLE
   :project 5 :project-status "In work"
   :project (classic 2) :project-status ("Backlog" "On hold")
+#+END_EXAMPLE
+
+=:created-at=, =:updated-at=, =:closed-at=, =:merged-at= can have one of this forms:
+ - "TIMESTAMP"
+ - (> "TIMESTAMP")
+ - (>= "TIMESTAMP")
+ - (< "TIMESTAMP")
+ - (<= "TIMESTAMP")
+ - (range "TIMESTAMP" "TIMESTAMP")
+
+Supported =TIMESTAMP= formats:
+
+| format                      | description                 |
+|-----------------------------+-----------------------------|
+| “2024-02-20“                | date                        |
+| “2024-02-20T15:59:59Z“      | utc date and time           |
+| “2024-02-20T15:59:79+00:00“ | date and time with timezone |
+| “-10d“                      | 10 days before today        |
+| “-10w“                      | 10 weeks before today       |
+| “-10mo“                     | 10 months before today      |
+| “-10y“                      | 10 years before today       |
+
+Examples:
+#+BEGIN_EXAMPLE
+  :created-at "2024-02-20"
+  :updated-at (>= "-3mo")
 #+END_EXAMPLE
 
 =GITHUB-QUERY= is a string using github search syntax:
@@ -941,7 +942,7 @@ Allowed values:
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-table-time-format
 *** om-dash-table-time-format
 Format for =format-time-string= used for times in tables.
-E.g. used for :created-at, :updated-at, :closed-at github columns.
+E.g. used for github columns like :created-at, :updated-at, etc.
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-github-columns
@@ -966,6 +967,7 @@ Supported values:
 | :created-at     | date              |
 | :updated-at     | date              |
 | :closed-at      | date              |
+| :merged-at      | date              |
 #+END:
 
 #+BEGIN: om-dash--readme-symbol :symbol om-dash-orgfile-columns
