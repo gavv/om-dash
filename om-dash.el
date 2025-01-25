@@ -64,6 +64,7 @@
 (require 'cl-lib)
 (require 'imap)
 (require 'json)
+(require 'netrc)
 (require 'org)
 (require 'seq)
 
