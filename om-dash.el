@@ -2452,7 +2452,8 @@ is a format string where `%s' can be used for entry title.
     (om-dash--log
      (format "connecting to imap server: server \"%s:%s\" user \"%s\" stream \"%s\" auth \"%s\""
              host port user stream auth))
-    (with-current-buffer (imap-open host port stream auth)
+    (with-current-buffer (or (imap-open host port stream auth)
+                             (error "om-dash: imap connection failed"))
       (imap-authenticate user password)
       (dolist (folder (imap-mailbox-list (s-concat parent-folder "*")))
         (when (or (not parent-folder)
