@@ -2856,7 +2856,7 @@ the function updates all blocks inside 1.1, 1.1.1, 1.1.2."
   "Matches table ruler.")
 
 (defconst om-dash--cell-regexp
-  "|\\([ \t]*\\([^| \t\n][^|]+[^| \t\n]\\)[ \t]*\\)|"
+  "|\\([ \t]*\\([^| \t\n][^|]*[^| \t\n]\\)[ \t]*\\)|"
   "Matches table cell.")
 
 (defconst om-dash--ruler-or-cell-regexp
