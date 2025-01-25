@@ -2766,13 +2766,13 @@ the function updates all blocks inside 1.1, 1.1.1, 1.1.2."
   (save-excursion
     (outline-back-to-heading)
     (let* ((start-level (org-current-level))
-           (start-point (point))
+           (start-point (point-marker))
            (end-point (save-excursion
                         (outline-next-heading)
                         (while (and (not (eobp))
                                     (> (org-current-level) start-level))
                           (outline-next-heading))
-                        (point)))
+                        (point-marker)))
            (num-blocks 0))
       (while (and (re-search-forward "^[ \t]*#\\+BEGIN:" nil t)
                   (< (point) end-point))
