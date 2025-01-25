@@ -3,6 +3,7 @@
 ;; Copyright (C) 2024 Victor Gaydov and contributors
 
 ;; Author: Victor Gaydov <victor@enise.org>
+;; Created: 22 May 2024
 ;; URL: https://github.com/gavv/om-dash
 
 ;;; License:
@@ -22,28 +23,41 @@
 
 ;;; Commentary:
 
-;; om-dash implements a set of dynamic blocks for org-mode that you can use
+;; `om-dash' implements a set of dynamic blocks for org-mode that you can use
 ;; to compose a custom dashboard for your projects.
 
 ;; The following dynamic blocks are available:
-;; * om-dash-github
+;; * `om-dash-github'
 ;;   generates a table with issues or pull requests from github repository
-;; * om-dash-orgfile
+;; * `om-dash-orgfile'
 ;;   generates tables with top-level entries from an org file
-;; * om-dash-imap
+;; * `om-dash-imap'
 ;;   generates table with unread email counters for IMAP folder
-;; * om-dash-command
+;; * `om-dash-command'
 ;;   generates a table from JSON or CSV output of a shell command
-;; * om-dash-function
+;; * `om-dash-function'
 ;;   generates a table from output of a Elisp function
 
-;; The package also provides a minor mode (om-dash-mode) that applies
+;; The package also provides a minor mode `om-dash-mode' that applies
 ;; highlighting to the generated tables.
 
 ;; In addition, there is support for templates, which allow to create
 ;; reusable parameterized configurations of the above blocks.
 
 ;; Refer to README.org for examples and screenshots.
+
+;;; Quoting:
+
+;; A brief note on docstring quoting styles in this package:
+
+;;  1. Symbols, functions, and variables are quoted in standard way `like-this'.
+
+;;  2. Since double quotes are used very often in docstrings, we use unicode
+;;     quotes “like this“ instead double quotes "like this" to avoid backslash hell.
+
+;;  3. In tables inside docstrings, we use apostrophes 'like-this' instead of
+;;     standard quotes `like-this' to prevent quote translation; otherwise, table
+;;     alignment would be broken in the help buffer.
 
 ;;; Code:
 
@@ -67,10 +81,10 @@
 If block has any of the TODO keywords, block's heading becomes TODO.
 The first element from this list is used for block's heading in this case.
 
-If a keyword from this list doesn't have a face in 'om-dash-keyword-faces',
+If a keyword from this list doesn't have a face in `om-dash-keyword-faces',
 it uses default TODO keyword face.
 
-When nil, filled automatically from 'org-todo-keywords', 'org-done-keywords',
+When nil, filled automatically from `org-todo-keywords', `org-done-keywords',
 and pre-defined github keywords.")
 
 (defvar om-dash-done-keywords nil
@@ -79,10 +93,10 @@ and pre-defined github keywords.")
 If block doesn't have any of the TODO keywords, block's heading becomes DONE.
 The first element from this list is used for block's heading in this case.
 
-If a keyword from this list doesn't have a face in 'om-dash-keyword-faces',
+If a keyword from this list doesn't have a face in `om-dash-keyword-faces',
 it uses default DONE keyword face.
 
-When nil, filled automatically from 'org-todo-keywords', 'org-done-keywords',
+When nil, filled automatically from `org-todo-keywords', `org-done-keywords',
 and pre-defined github keywords.")
 
 (defvar om-dash-keyword-faces
@@ -103,7 +117,7 @@ and pre-defined github keywords.")
 
 If some keyword is not mapped to a face explicitly, default face is selected,
 using face for TODO or DONE depending on whether that keyword is in
-'om-dash-todo-keywords' or 'om-dash-done-keywords'.")
+`om-dash-todo-keywords' or `om-dash-done-keywords'.")
 
 (defvar om-dash-tag-map nil
   "Assoc list to remap or unmap tag names.
@@ -121,31 +135,31 @@ You can map tag name to a different string or to nil to hide it.")
 
 Each entry is a cons of two symbols: template name and template function.
 
-When you pass \":template foo\" as an argument to a dynamic block, it finds
-a function in this list by key 'foo' and uses it to \"expand\" the template.
+When you pass “:template foo“ as an argument to a dynamic block, it finds
+a function in this list by key `foo' and uses it to “expand“ the template.
 
 This function is invoked with dynamic block parameters plist and should
 return a new plist. The new plist is used to update the original
 parameters by appending new values and overwriting existing values.
 
-For example, if 'org-dblock-write:om-dash-github' block has parameters:
-  (:repo \"owner/repo\"
+For example, if `org-dblock-write:om-dash-github' block has parameters:
+  (:repo “owner/repo“
    :type 'issue
    :template project-column
    :project 123
-   :column \"In progress\")
+   :column “In progress“)
 
-Dynamic block will use 'project-column' as a key in 'om-dash-templates'
-and find 'om-dash-github:project-column' function.
+Dynamic block will use `project-column' as a key in `om-dash-templates'
+and find `om-dash-github:project-column' function.
 
 The function is invoked with the original parameter list, and returns
 a modified parameter list:
-  (:repo \"owner/repo\"
+  (:repo “owner/repo“
    :type 'issue
-   :open (\"project:owner/repo/123\"
-          \".projectCards[] | (.column.name == \\\"In progress\\\")\")
-   :closed \"\"
-   :headline \"issues (owner/repo \\\"1.2.3\\\")\")
+   :open (“project:owner/repo/123“
+          “.projectCards[] | (.column.name == \\“In progress\\“)“)
+   :closed ““
+   :headline “issues (owner/repo \\“1.2.3\\“)“)
 
 Then modified parameters are interpreted by dynamic block as usual.")
 
@@ -178,7 +192,7 @@ Allowed values:
   'om-dash-table-link-style "0.2")
 
 (defvar om-dash-table-time-format "%a, %d %b %Y"
-  "Format for 'format-time-string' used for times in tables.
+  "Format for `format-time-string' used for times in tables.
 E.g. used for github columns like :created-at, :updated-at, etc.")
 
 (defvar om-dash-github-columns
@@ -186,7 +200,7 @@ E.g. used for github columns like :created-at, :updated-at, etc.")
     :number
     :author
     :title-link)
-  "Column list for 'om-dash-github' tables.
+  "Column list for `om-dash-github' tables.
 
 Supported values:
 
@@ -214,7 +228,7 @@ Supported values:
 (defvar om-dash-orgfile-columns
   '(:state
     :title-link)
-  "Column list for 'om-dash-orgfile' tables.
+  "Column list for `om-dash-orgfile' tables.
 
 Supported values:
 
@@ -232,7 +246,7 @@ Supported values:
     :unread
     :total
     :folder)
-  "Column list for 'om-dash-imap' tables.
+  "Column list for `om-dash-imap' tables.
 
 Supported values:
 
@@ -248,8 +262,8 @@ Supported values:
 (defvar om-dash-github-limit 200
   "Default limit for github queries.
 
-E.g. if you query \"all open issues\" or \"closed issues since january\",
-only last 'om-dash-github-limit' results are returned.")
+E.g. if you query “all open issues“ or “closed issues since january“,
+only last `om-dash-github-limit' results are returned.")
 
 (defvar om-dash-github-fields
   '(
@@ -309,10 +323,10 @@ be used in jq selectors.
 We don't enable all fields by default because some of them noticeably
 slow down response times.
 
-There is also 'om-dash-github-auto-enabled-fields', which defines fields
+There is also `om-dash-github-auto-enabled-fields', which defines fields
 that are enabled automatically for a query if jq selector contains them.
 
-In addition, 'org-dblock-write:om-dash-github' accept ':fields'
+In addition, `org-dblock-write:om-dash-github' accept `:fields'
 parameter, which can be used to overwrite fields list per-block.")
 
 (defvar om-dash-github-auto-enabled-fields
@@ -347,52 +361,52 @@ parameter, which can be used to overwrite fields list per-block.")
     )
   "List of json fields automatically enabled on demand in github queries.
 
-See 'om-dash-github-fields' for more details.")
+See `om-dash-github-fields' for more details.")
 
 (defvar om-dash-imap-host nil
   "Default IMAP server hostname.
 
-Used by 'om-dash-imap' if ':host' parameter is not provided.
-Host must be always set, either via ':host' or 'om-dash-imap-host'.")
+Used by `om-dash-imap' if `:host' parameter is not provided.
+Host must be always set, either via `:host' or `om-dash-imap-host'.")
 
 (defvar om-dash-imap-port nil
   "Default IMAP server port number.
 
-Used by 'om-dash-imap' if ':port' parameter is not provided.
+Used by `om-dash-imap' if `:port' parameter is not provided.
 If port is not set, default IMAP port is used.")
 
 (defvar om-dash-imap-machine nil
   "Default ~/.authinfo machine for IMAP server.
 
-Used by 'om-dash-imap' if ':machine' parameter is not provided.
+Used by `om-dash-imap' if `:machine' parameter is not provided.
 If machine is not set, value of host is used.")
 
 (defvar om-dash-imap-user nil
   "Default username for IMAP server.
 
-Used by 'om-dash-imap' if ':user' parameter is not provided.
+Used by `om-dash-imap' if `:user' parameter is not provided.
 If user is not set, it's read from ~/.authinfo.
-See also 'om-dash-imap-machine'.")
+See also `om-dash-imap-machine'.")
 
 (defvar om-dash-imap-password nil
   "Default username for IMAP server.
 
-Used by 'om-dash-imap' if ':password' parameter is not provided.
+Used by `om-dash-imap' if `:password' parameter is not provided.
 If password is not set, it's read from ~/.authinfo.
-See also 'om-dash-imap-machine'.")
+See also `om-dash-imap-machine'.")
 
 (defvar om-dash-imap-stream nil
-  "Default STREAM parameter for 'imap-open'.
+  "Default STREAM parameter for `imap-open'.
 
-Used by 'om-dash-imap' if ':stream' parameter is not provided.
-Must be one of the values from 'imap-streams'.
+Used by `om-dash-imap' if `:stream' parameter is not provided.
+Must be one of the values from `imap-streams'.
 If nil, detected automatically.")
 
 (defvar om-dash-imap-auth nil
-  "Default AUTH parameter for 'imap-open'.
+  "Default AUTH parameter for `imap-open'.
 
-Used by 'om-dash-imap' if ':auth' parameter is not provided.
-Must be one of the values from 'imap-authenticators'.
+Used by `om-dash-imap' if `:auth' parameter is not provided.
+Must be one of the values from `imap-authenticators'.
 If nil, detected automatically.")
 
 (defvar om-dash-imap-empty-folders nil
@@ -401,7 +415,7 @@ If nil, empty folders are excluded from the table.")
 
 (defvar om-dash-verbose nil
   "Enable verbose logging.
-If non-nill, all commands and queries are logged to '*om-dash*' buffer.")
+If non-nill, all commands and queries are logged to `*om-dash*' buffer.")
 
 (defgroup om-dash-faces nil
   "Faces in om-dash mode.")
@@ -446,42 +460,42 @@ You can use it so specify cell font."
 
 (defface om-dash-todo-keyword
   '((t (:inherit org-todo :weight normal)))
-  "Face used for 'TODO' keyword in om-dash tables."
+  "Face used for `TODO' keyword in om-dash tables."
    :group 'om-dash-faces)
 
 (defface om-dash-done-keyword
   '((t (:inherit org-done :weight normal)))
-  "Face used for 'DONE' keyword in om-dash tables."
+  "Face used for `DONE' keyword in om-dash tables."
    :group 'om-dash-faces)
 
 (defface om-dash-open-keyword
   '((t (:inherit om-dash-todo-keyword)))
-  "Face used for 'OPEN' keyword in om-dash tables."
+  "Face used for `OPEN' keyword in om-dash tables."
    :group 'om-dash-faces)
 
 (defface om-dash-merged-keyword
   '((t (:inherit om-dash-done-keyword)))
-  "Face used for 'MERGED' keyword in om-dash tables."
+  "Face used for `MERGED' keyword in om-dash tables."
    :group 'om-dash-faces)
 
 (defface om-dash-closed-keyword
   '((t (:inherit org-warning :weight normal)))
-  "Face used for 'CLOSED' keyword in om-dash tables."
+  "Face used for `CLOSED' keyword in om-dash tables."
    :group 'om-dash-faces)
 
 (defface om-dash-new-keyword
   '((t (:inherit org-todo :weight normal)))
-  "Face used for 'NEW' keyword in om-dash tables."
+  "Face used for `NEW' keyword in om-dash tables."
   :group 'om-dash-faces)
 
 (defface om-dash-unread-keyword
   '((t (:inherit org-todo :weight normal)))
-  "Face used for 'UNREAD' keyword in om-dash tables."
+  "Face used for `UNREAD' keyword in om-dash tables."
    :group 'om-dash-faces)
 
 (defface om-dash-clean-keyword
   '((t (:inherit org-done :weight normal)))
-  "Face used for 'CLEAN' keyword in om-dash tables."
+  "Face used for `CLEAN' keyword in om-dash tables."
    :group 'om-dash-faces)
 
 (defun om-dash--log (msg)
@@ -779,7 +793,7 @@ Join resulting list into one string using a separator and return result."
     (backward-delete-char 1)))
 
 (defun om-dash--table-todo-p (table)
-  "Check if a table has a cell with value from 'om-dash-todo-keywords'."
+  "Check if a table has a cell with value from `om-dash-todo-keywords'."
   (seq-some (lambda (row)
               (seq-some (lambda (cell)
                           (seq-contains-p (om-dash--todo-keywords)
@@ -1643,19 +1657,19 @@ Join resulting list into one string using a separator and return result."
 
 Basic example:
 
-  #+BEGIN: om-dash-github :repo \"owner/repo\" :type issue :open \"*\" :closed \"-1w\"
+  #+BEGIN: om-dash-github :repo “owner/repo“ :type issue :open “*“ :closed “-1w“
   ...
   #+END:
 
 More complicated query using simple syntax:
 
-  #+BEGIN: om-dash-github :repo \"owner/repo\" :type pullreq :open (:milestone \"1.2.3\" :label \"blocker\" :no-label \"triage\")
+  #+BEGIN: om-dash-github :repo “owner/repo“ :type pullreq :open (:milestone “1.2.3“ :label “blocker“ :no-label “triage“)
   ...
   #+END:
 
 Same query but by providing github search query and jq selector:
 
-  #+BEGIN: om-dash-github :repo \"owner/repo\" :type pullreq :open (\"milestone:1.2.3 label:blocker\" \".labels | (.name == \\\"triage\\\") | not\")
+  #+BEGIN: om-dash-github :repo “owner/repo“ :type pullreq :open (“milestone:1.2.3 label:blocker“ “.labels | (.name == \\“triage\\“) | not“)
   ...
   #+END:
 
@@ -1676,34 +1690,34 @@ Parameters:
 | :headline      | auto                     | text for generated org heading         |
 | :heading-level | auto                     | level for generated org heading        |
 
-Parameters ':any', ':open', and ':closed' define 'QUERY' for topics in corresponding
-states. You should specify either ':any' or ':open' and/or ':close'. Not specifying
-anything is equavalent to :open \"*\".
+Parameters `:any', `:open', and `:closed' define `QUERY' for topics in corresponding
+states. You should specify either `:any' or `:open' and/or `:close'. Not specifying
+anything is equavalent to :open “*“.
 
-'QUERY' can have one of the following forms:
+`QUERY' can have one of the following forms:
 
- - plist: om-dash 'SIMPLE-QUERY', e.g.:
-     (:milestone \"1.2.3\" :no-author \"bob\")
+ - plist: om-dash `SIMPLE-QUERY', e.g.:
+     (:milestone “1.2.3“ :no-author “bob“)
 
- - string: standard or extended 'GITHUB-QUERY', e.g.:
-     \"milestone:1.2.3\"
-     \"*\"
-     \"-1w\"
+ - string: standard or extended `GITHUB-QUERY', e.g.:
+     “milestone:1.2.3“
+     “*“
+     “-1w“
 
- - list: two-element list with 'GITHUB-QUERY' and 'JQ-SELECTOR' strings, e.g.:
-     (\"milestone:1.2.3\" \".author.login != \"bob\")
+ - list: two-element list with `GITHUB-QUERY' and `JQ-SELECTOR' strings, e.g.:
+     (“milestone:1.2.3“ “.author.login != “bob“)
 
-You can specify different queries for ':open' and ':closed' topics, e.g. to show all
+You can specify different queries for `:open' and `:closed' topics, e.g. to show all
 open issues but only recently closed issues, use:
 
-  :open \"*\" :closed \"-1mo\"
+  :open “*“ :closed “-1mo“
 
 Or you can use a single query regardless of topic state:
 
-  :any \"-1mo\"
+  :any “-1mo“
 
-'SIMPLE-QUERY' format is a convenient way to build queries for some typical
-use cases. The query should be a 'plist' with the following properties:
+`SIMPLE-QUERY' format is a convenient way to build queries for some typical
+use cases. The query should be a `plist' with the following properties:
 
 | property           | description                                              |
 |--------------------+----------------------------------------------------------|
@@ -1730,26 +1744,26 @@ use cases. The query should be a 'plist' with the following properties:
 | :merged-at         | include only topics merged within given date range       |
 
 All properties are optional (but at least one should be provided). Multiple
-properties are ANDed, e.g. (:author \"bob\" :label \"bug\") matches topics with
+properties are ANDed, e.g. (:author “bob“ :label “bug“) matches topics with
 author “bob“ AND label “bug“. Most properties support list form, in which case
-its elements are ORed. E.g. (:author (\"bob\" \"alice\") :label \"bug\") matches
+its elements are ORed. E.g. (:author (“bob“ “alice“) :label “bug“) matches
 topics with label “bug“ AND author either “bob“ OR “alice“.
 
-':milestone', ':label', ':author', ':assignee', and ':reviewer' properties, as
-well as their ':no-xxx' counterparts, can be either a string (to match one value)
+`:milestone', `:label', `:author', `:assignee', and `:reviewer' properties, as
+well as their `:no-xxx' counterparts, can be either a string (to match one value)
 or a list of strings (to match any value from the list). Two special values are
-supported: '*' matches if corresponding property (e.g. assignee) is non-empty,
-and '-' matches if the property unset/empty.
+supported: “*“ matches if corresponding property (e.g. assignee) is non-empty,
+and “-“ matches if the property unset/empty.
 
 Examples:
-  :author \"bob\"
-  :assignee \"-\"
-  :no-label (\"refactoring\" \"documentation\")
+  :author “bob“
+  :assignee “-“
+  :no-label (“refactoring“ “documentation“)
 
-':every-label' is similar to ':label', but it matches topics that have all of
+`:every-label' is similar to `:label', but it matches topics that have all of
 the labels from the list, instead of any label from list.
 
-':review-status' property can be a symbol or a list of symbols
+`:review-status' property can be a symbol or a list of symbols
 (to match any status from the list).
 
 Supported values:
@@ -1771,31 +1785,31 @@ Examples:
 GitHub review state model is complicated. These statuses is an attempt to provide
 a simplified view of the review state for most common needs.
 
-Note that not all statuses are mutually exclusive, in particular 'required' can
-co-exist with any status except 'undecided', and 'commented' can co-exist with
+Note that not all statuses are mutually exclusive, in particular `required' can
+co-exist with any status except `undecided', and `commented' can co-exist with
 any other status. You can match multiple statuses by providing a list.
 
-':project' defines numeric identifier of the 'v2' or 'classic' github project (you can
-see identifier in the url). By default, 'v2' is assumed, but you can change type
-using ':project-type' property.
+`:project' defines numeric identifier of the `v2' or `classic' github project (you can
+see identifier in the url). By default, `v2' is assumed, but you can change type
+using `:project-type' property.
 
-':project-status' can be a string or a list of strings. For 'v2' projects, it matches
+`:project-status' can be a string or a list of strings. For `v2' projects, it matches
 “status“ field of the project item, which corresponds to column name if board view of
-the project. For 'classic' projects, it matches “column“ property of the project card.
+the project. For `classic' projects, it matches “column“ property of the project card.
 
 Examples:
-  :project 5 :project-status \"In work\"
-  :project 2 :project-type classic :project-status (\"Backlog\" \"On hold\")
+  :project 5 :project-status “In work“
+  :project 2 :project-type classic :project-status (“Backlog“ “On hold“)
 
-':created-at', ':updated-at', ':closed-at', ':merged-at' can have one of this forms:
- - \"TIMESTAMP\"
- - (> \"TIMESTAMP\")
- - (>= \"TIMESTAMP\")
- - (< \"TIMESTAMP\")
- - (<= \"TIMESTAMP\")
- - (range \"TIMESTAMP\" \"TIMESTAMP\")
+`:created-at', `:updated-at', `:closed-at', `:merged-at' can have one of this forms:
+ - “TIMESTAMP“
+ - (> “TIMESTAMP“)
+ - (>= “TIMESTAMP“)
+ - (< “TIMESTAMP“)
+ - (<= “TIMESTAMP“)
+ - (range “TIMESTAMP“ “TIMESTAMP“)
 
-Supported 'TIMESTAMP' formats:
+Supported `TIMESTAMP' formats:
 
 | format                      | description                 |
 |-----------------------------+-----------------------------|
@@ -1808,10 +1822,10 @@ Supported 'TIMESTAMP' formats:
 | “-10y“                      | 10 years before today       |
 
 Examples:
-  :created-at \"2024-02-20\"
-  :updated-at (>= \"-3mo\")
+  :created-at “2024-02-20“
+  :updated-at (>= “-3mo“)
 
-'GITHUB-QUERY' is a string using github search syntax:
+`GITHUB-QUERY' is a string using github search syntax:
 https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
 
 Besides standard syntax, a few extended forms are supported for github query:
@@ -1824,7 +1838,7 @@ Besides standard syntax, a few extended forms are supported for github query:
 | “-123mo“ | same, but months                                |
 | “-123y“  | same, but years                                 |
 
-'JQ-SELECTOR' is an optional selector to filter results using jq command:
+`JQ-SELECTOR' is an optional selector to filter results using jq command:
 https://jqlang.github.io/jq/
 
 Under the hood, this block uses combination of gh and jq commands like:
@@ -1833,13 +1847,13 @@ Under the hood, this block uses combination of gh and jq commands like:
         --json <fields> --search <github query> --limit <limit> \\
     | jq '[.[] | select(<jq selector>)]'
 
-Exact commands being executed are printed to '*om-dash*' buffer
-if 'om-dash-verbose' is set.
+Exact commands being executed are printed to `*om-dash*' buffer
+if `om-dash-verbose' is set.
 
-By default, github query uses all fields from 'om-dash-github-fields', plus any
-field from 'om-dash-github-auto-enabled-fields' if it's present in jq selector.
+By default, github query uses all fields from `om-dash-github-fields', plus any
+field from `om-dash-github-auto-enabled-fields' if it's present in jq selector.
 The latter allows to exclude fields that makes queries slower, when they're
-not used. To change this, you can specify ':fields' parameter explicitly.
+not used. To change this, you can specify `:fields' parameter explicitly.
 "
   ;; expand template
   (setq params
@@ -1974,7 +1988,7 @@ not used. To change this, you can specify ':fields' parameter explicitly.
 
 (defun om-dash-github:milestone (params)
   "This template is OBSOLETE.
-Use 'om-dash-github' with ':milestone' query instead.
+Use `om-dash-github' with `:milestone' query instead.
 "
   ;; parse args
   (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
@@ -2006,7 +2020,7 @@ Use 'om-dash-github' with ':milestone' query instead.
 
 (defun om-dash-github:project-column (params)
   "This template is OBSOLETE.
-Use 'om-dash-github' with ':project-status' query instead.
+Use `om-dash-github' with `:project-status' query instead.
 "
   ;; parse args
   (let* ((repo (or (plist-get params :repo) (error "om-dash: missing :repo")))
@@ -2226,13 +2240,13 @@ Use 'om-dash-github' with ':project-status' query instead.
 
 Basic usage:
 
-  #+BEGIN: om-dash-orgfile :file \"~/my/file.org\" :query (:todo-depth 2 :done-depth 1)
+  #+BEGIN: om-dash-orgfile :file “~/my/file.org“ :query (:todo-depth 2 :done-depth 1)
   ...
   #+END:
 
 Custom org-ql query:
 
-  #+BEGIN: om-dash-orgfile :file \"~/my/file.org\" :query (todo \"SOMEDAY\")
+  #+BEGIN: om-dash-orgfile :file “~/my/file.org“ :query (todo “SOMEDAY“)
   ...
   #+END:
 
@@ -2249,20 +2263,20 @@ Parameters:
 | :heading-level | auto                          | level for generated org headings       |
 
 By default, this block generates an org heading with a table for every
-top-level (i.e. level-1) org heading in specified ':file', with nested
+top-level (i.e. level-1) org heading in specified `:file', with nested
 headings represented as table rows.
 
-If ':digest' is t, a single table with all entries is generated instead.
+If `:digest' is t, a single table with all entries is generated instead.
 
-':query' defines what entries to retrieve from org file and add to table.
+`:query' defines what entries to retrieve from org file and add to table.
 It should have one of the following forms:
 
- - plist: om-dash 'SIMPLE-QUERY', e.g. (:todo-depth 2 :done-depth 1)
- - list: 'ORG-QL' sexp query, e.g. (todo \"SOMEDAY\")
- - string: 'ORG-QL' string query, e.g. \"todo:SOMEDAY\"
+ - plist: om-dash `SIMPLE-QUERY', e.g. (:todo-depth 2 :done-depth 1)
+ - list: `ORG-QL' sexp query, e.g. (todo “SOMEDAY“)
+ - string: `ORG-QL' string query, e.g. “todo:SOMEDAY“
 
-'SIMPLE-QUERY' format is a convenient way to build queries for some typical
-use cases. The query should be a 'plist' with the following properties:
+`SIMPLE-QUERY' format is a convenient way to build queries for some typical
+use cases. The query should be a `plist' with the following properties:
 
 | property     | default | description                                          |
 |--------------+---------+------------------------------------------------------|
@@ -2278,51 +2292,51 @@ use cases. The query should be a 'plist' with the following properties:
 | :blocked     | any     | whether to include blocked entries                   |
 | :habit       | any     | whether to include habit entries                     |
 
-Properties ':todo-depth' and ':done-depth' limit how deep the tree is
+Properties `:todo-depth' and `:done-depth' limit how deep the tree is
 traversed for top-level headings in “todo“ and “done“ states.
 
 For example:
 
- - if ':todo-depth' is 0, then level-1 headings in “todo“ state are not
+ - if `:todo-depth' is 0, then level-1 headings in “todo“ state are not
    shown at all
 
- - if ':todo-depth' is 1, then level-1 headings in “todo“ state are shown
-   \"collapsed\", i.e. org heading is generated, but without table
+ - if `:todo-depth' is 1, then level-1 headings in “todo“ state are shown
+   “collapsed“, i.e. org heading is generated, but without table
 
- - if ':todo-depth' is 2, then level-1 headings in “todo“ state are shown
+ - if `:todo-depth' is 2, then level-1 headings in “todo“ state are shown
    and each has a table with its level-2 children
 
- - if ':todo-depth' is 3, then level-1 headings in “todo“ state are shown
+ - if `:todo-depth' is 3, then level-1 headings in “todo“ state are shown
    and each has a table with its level-2 and level-3 children
 
-...and so on. Same applies to ':done-depth' parameter.
+...and so on. Same applies to `:done-depth' parameter.
 
 Whether a keyword is considered as “todo“ or “done“ is defined by
-variables 'om-dash-todo-keywords' and 'om-dash-done-keywords'.
-By default they are automatically populated from 'org-todo-keywords-1'
-and 'org-done-keywords', but you can set them to your own values.
+variables `om-dash-todo-keywords' and `om-dash-done-keywords'.
+By default they are automatically populated from `org-todo-keywords-1'
+and `org-done-keywords', but you can set them to your own values.
 
-':category', ':priority', and ':tag' properties, as well as their ':no-xxx'
+`:category', `:priority', and `:tag' properties, as well as their `:no-xxx'
 counterparts, can be either a string (to match one value) or a list of strings
 (to match any value from the list).
 
 Examples:
-  :priority \"A\"
-  :no-tag (\"wip\" \"stuck\")
+  :priority “A“
+  :no-tag (“wip“ “stuck“)
 
-':every-tag' is similar to ':tag', but it matches entries that have all of
+`:every-tag' is similar to `:tag', but it matches entries that have all of
 the tags from the list, instead of any tag from list.
 
-':blocked' and ':habit' properties should be one of the three symbols: 'any'
-(ignore type), 'yes' (include only entries of this type), 'no' (exclude entries).
+`:blocked' and `:habit' properties should be one of the three symbols: `any'
+(ignore type), `yes' (include only entries of this type), `no' (exclude entries).
 
-For 'ORG-QL' sexp and string queries, see here:
+For `ORG-QL' sexp and string queries, see here:
 https://github.com/alphapapa/org-ql?tab=readme-ov-file#queries
 
-':headline' parameter defines text for org headings which contains
-tables. If ':digest' is t, there is only one table and ':headline'
-is just a string. Otherwise, there are many tables, and ':headline'
-is a format string where '%s' can be used for entry title.
+`:headline' parameter defines text for org headings which contains
+tables. If `:digest' is t, there is only one table and `:headline'
+is just a string. Otherwise, there are many tables, and `:headline'
+is a format string where `%s' can be used for entry title.
 "
   ;; expand template
   (setq params
@@ -2467,7 +2481,7 @@ is a format string where '%s' can be used for entry title.
   "Builds org heading with a table of IMAP folder(s) and their unread mail counters.
 
 Usage example:
-  #+BEGIN: om-dash-imap :folder \"foo/bar\"
+  #+BEGIN: om-dash-imap :folder “foo/bar“
   ...
   #+END:
 
@@ -2485,19 +2499,19 @@ Usage example:
 | :headline      | auto                                   | text for generated org heading    |
 | :heading-level | auto                                   | level for generated org heading   |
 
-':host' and ':port' define IMAP server address.
+`:host' and `:port' define IMAP server address.
 Host must be always set, and port is optional.
 
-':user' and ':password' define IMAP credentials.
-If not set, 'om-dash-imap' will read them from ~/.authinfo.
-If ':machine' is set, it's used to search ~/.authinfo, otherwise host is used.
+`:user' and `:password' define IMAP credentials.
+If not set, `om-dash-imap' will read them from ~/.authinfo.
+If `:machine' is set, it's used to search ~/.authinfo, otherwise host is used.
 
-':stream' and ':auth' may be used to force 'imap-open' to use specific
-connection and authentification types. For example, you can use 'network'
-and 'login' values to force plain-text unencrypted password.
+`:stream' and `:auth' may be used to force `imap-open' to use specific
+connection and authentification types. For example, you can use `network'
+and `login' values to force plain-text unencrypted password.
 
-All these parameters have corresponding variables (e.g. 'om-dash-imap-host'
-for ':host') which are used if paremeter is omitted. Value is considered
+All these parameters have corresponding variables (e.g. `om-dash-imap-host'
+for `:host') which are used if paremeter is omitted. Value is considered
 unset when both parameter is omitted and variable is nil.
 "
   ;; expand template
@@ -2578,7 +2592,7 @@ unset when both parameter is omitted and variable is nil.
   "Builds org heading with a table from output of a shell command.
 
 Usage example:
-  #+BEGIN: om-dash-command :command \"curl -s https://api.github.com/users/octocat/repos\" :format json :columns (\"name\" \"forks_count\")
+  #+BEGIN: om-dash-command :command “curl -s https://api.github.com/users/octocat/repos“ :format json :columns (“name“ “forks_count“)
   ...
   #+END:
 
@@ -2591,13 +2605,13 @@ Usage example:
 | :headline      | auto     | text for generated org heading          |
 | :heading-level | auto     | level for generated org heading         |
 
-If ':format' is 'json', command output should be a JSON array of
-JSON objects, which have a value for every key from ':columns'.
+If `:format' is `json', command output should be a JSON array of
+JSON objects, which have a value for every key from `:columns'.
 
-If ':format' is 'csv', command output should be CSV. First column
-of CSV becomes value of first column from ':columns', and so on.
+If `:format' is `csv', command output should be CSV. First column
+of CSV becomes value of first column from `:columns', and so on.
 
-Note: using CSV format requires installing 'parse-csv' package
+Note: using CSV format requires installing `parse-csv' package
 from https://github.com/mrc/el-csv
 "
   ;; expand template
@@ -2646,7 +2660,7 @@ Usage example:
 | :heading-level | auto     | level for generated org heading   |
 
 The function should return a list of tables, where each table is
-a 'plist' with the following properties:
+a `plist' with the following properties:
 
 | property      | default  | description                                          |
 |---------------+----------+------------------------------------------------------|
@@ -2656,7 +2670,7 @@ a 'plist' with the following properties:
 | :column-names | required | list of column names (strings)                       |
 | :rows         | required | list of rows, where row is a list of cells (strings) |
 
-If ':keyword', ':headline' or ':heading-level' is provided as the block parameter,
+If `:keyword', `:headline' or `:heading-level' is provided as the block parameter,
 it overrides corresponding property returned from function.
 
 Example function that returns a single 2x2 table:
@@ -2665,11 +2679,11 @@ Example function that returns a single 2x2 table:
     ;; list of tables
     (list
      ;; table plist
-     (list :keyword \"TODO\"
-           :headline \"example table\"
-           :column-names '(\"foo\" \"bar\")
-           :rows '((\"a\" \"b\")
-                   (\"c\" \"d\")))))
+     (list :keyword “TODO“
+           :headline “example table“
+           :column-names '(“foo“ “bar“)
+           :rows '((“a“ “b“)
+                   (“c“ “d“)))))
 "
   ;; expand template
   (setq params
