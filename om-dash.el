@@ -1672,6 +1672,7 @@ Parameters:
 | :fields        | 'om-dash-github-fields'  | explicitly specify list of fields      |
 | :limit         | 'om-dash-github-limit'   | limit number of results                |
 | :table-columns | 'om-dash-github-columns' | list of columns to display             |
+| :keyword       | auto                     | keyword for generated org heading      |
 | :headline      | auto                     | text for generated org heading         |
 | :heading-level | auto                     | level for generated org heading        |
 
@@ -1877,6 +1878,7 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                     om-dash-github-limit))
          (table-columns (or (plist-get params :table-columns)
                             om-dash-github-columns))
+         (keyword (plist-get params :keyword))
          (headline (or (plist-get params :headline)
                        (format "%s (%s)" (om-dash--github-format-headline type) repo)))
          (heading-level (or (plist-get params :heading-level)
@@ -1963,7 +1965,9 @@ not used. To change this, you can specify ':fields' parameter explicitly.
                             table-columns)
                    table)))
               parsed-output)
-      (om-dash--insert-heading (om-dash--choose-keyword todo-p) headline heading-level)
+      (om-dash--insert-heading (or keyword
+                                   (om-dash--choose-keyword todo-p))
+                               headline heading-level)
       (when table
         (om-dash--insert-table column-names (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
@@ -2240,6 +2244,7 @@ Parameters:
 | :query         | (:todo-depth 2 :done-depth 1) | query for org entries                  |
 | :digest        | nil                           | generate single table with all entries |
 | :table-columns | 'om-dash-orgfile-columns'     | list of columns to display             |
+| :keyword       | auto                          | keyword for generated org headings     |
 | :headline      | auto                          | text for generated org headings        |
 | :heading-level | auto                          | level for generated org headings       |
 
@@ -2341,6 +2346,7 @@ is a format string where '%s' can be used for entry title.
          (digest (plist-get params :digest))
          (table-columns (or (plist-get params :table-columns)
                             om-dash-orgfile-columns))
+         (forced-keyword (plist-get params :keyword))
          (headline (plist-get params :headline))
          (heading-level (or (plist-get params :heading-level)
                             (om-dash--choose-level))))
@@ -2365,7 +2371,8 @@ is a format string where '%s' can be used for entry title.
                      table-columns))
            table)
       (when digest
-        (om-dash--insert-heading (om-dash--choose-keyword (length entries))
+        (om-dash--insert-heading (or forced-keyword
+                                     (om-dash--choose-keyword (length entries)))
                                  (if headline
                                      headline
                                    (format "org tasks (%s)" file-name))
@@ -2387,7 +2394,7 @@ is a format string where '%s' can be used for entry title.
             (when table
               (om-dash--insert-table column-names (nreverse table) heading-level)
               (setq table nil))
-            (om-dash--insert-heading keyword
+            (om-dash--insert-heading (or forced-keyword keyword)
                                      (if headline
                                          (format headline title)
                                        (format "%s (%s)" title file-name))
@@ -2464,18 +2471,19 @@ Usage example:
   ...
   #+END:
 
-| parameter      | default                                | description                     |
-|----------------+----------------------------------------+---------------------------------|
-| :host          | 'om-dash-imap-host'                    | IMAP server hostmame            |
-| :port          | 'om-dash-imap-port' or default         | IMAP server port                |
-| :machine       | 'om-dash-imap-machine' or host         | ~/.authinfo machine             |
-| :user          | 'om-dash-imap-user' or ~/.authinfo     | IMAP username                   |
-| :password      | 'om-dash-imap-password' or ~/.authinfo | IMAP password                   |
-| :stream        | 'om-dash-imap-stream' or auto          | STREAM for imap-open            |
-| :auth          | 'om-dash-imap-auth' or auto            | AUTH for imap-open              |
-| :table-columns | 'om-dash-imap-columns'                 | list of columns to display      |
-| :headline      | auto                                   | text for generated org heading  |
-| :heading-level | auto                                   | level for generated org heading |
+| parameter      | default                                | description                       |
+|----------------+----------------------------------------+-----------------------------------|
+| :host          | 'om-dash-imap-host'                    | IMAP server hostmame              |
+| :port          | 'om-dash-imap-port' or default         | IMAP server port                  |
+| :machine       | 'om-dash-imap-machine' or host         | ~/.authinfo machine               |
+| :user          | 'om-dash-imap-user' or ~/.authinfo     | IMAP username                     |
+| :password      | 'om-dash-imap-password' or ~/.authinfo | IMAP password                     |
+| :stream        | 'om-dash-imap-stream' or auto          | STREAM for imap-open              |
+| :auth          | 'om-dash-imap-auth' or auto            | AUTH for imap-open                |
+| :table-columns | 'om-dash-imap-columns'                 | list of columns to display        |
+| :keyword       | auto                                   | keyword for generated org heading |
+| :headline      | auto                                   | text for generated org heading    |
+| :heading-level | auto                                   | level for generated org heading   |
 
 ':host' and ':port' define IMAP server address.
 Host must be always set, and port is optional.
@@ -2515,6 +2523,7 @@ unset when both parameter is omitted and variable is nil.
                      (error "om-dash: missing :folder")))
          (table-columns (or (plist-get params :table-columns)
                             om-dash-imap-columns))
+         (keyword (plist-get params :keyword))
          (headline (or (plist-get params :headline)
                        (format "emails (%s)" folder)))
          (heading-level (or (plist-get params :heading-level)
@@ -2557,7 +2566,8 @@ unset when both parameter is omitted and variable is nil.
                           (_ (error "om-dash: unknown table column %S" col))))
                       table-columns)
              table))))
-      (om-dash--insert-heading (om-dash--choose-keyword todo-p)
+      (om-dash--insert-heading (or keyword
+                                   (om-dash--choose-keyword todo-p))
                                headline
                                heading-level)
       (when table
@@ -2577,6 +2587,7 @@ Usage example:
 | :command       | required | shell command to run                    |
 | :columns       | required | column names (list of strings)          |
 | :format        | 'json'   | command output format ('json' or 'csv') |
+| :keyword       | auto     | keyword for generated org heading       |
 | :headline      | auto     | text for generated org heading          |
 | :heading-level | auto     | level for generated org heading         |
 
@@ -2598,6 +2609,7 @@ from https://github.com/mrc/el-csv
          (format (or (plist-get params :format) 'json))
          (columns (or (plist-get params :columns)
                       (error "om-dash: missing :columns")))
+         (keyword (plist-get params :keyword))
          (headline (or (plist-get params :headline)
                        (file-name-nondirectory
                         (car (split-string-shell-command command)))))
@@ -2610,7 +2622,8 @@ from https://github.com/mrc/el-csv
                     (`csv (om-dash--parse-csv columns raw-output))
                     (_ (error "om-dash: bad :format %S" format))))
            (is-todo (om-dash--table-todo-p table)))
-      (om-dash--insert-heading (om-dash--choose-keyword is-todo)
+      (om-dash--insert-heading (or keyword
+                                   (om-dash--choose-keyword is-todo))
                                headline heading-level)
       (when table
         (om-dash--insert-table columns table heading-level))
@@ -2624,12 +2637,13 @@ Usage example:
   ...
   #+END:
 
-| parameter      | default  | description                     |
-|----------------+----------+---------------------------------|
-| :func          | required | elisp function to call          |
-| :args          | nil      | optional function arguments     |
-| :headline      | auto     | text for generated org heading  |
-| :heading-level | auto     | level for generated org heading |
+| parameter      | default  | description                       |
+|----------------+----------+-----------------------------------|
+| :func          | required | elisp function to call            |
+| :args          | nil      | optional function arguments       |
+| :keyword       | auto     | keyword for generated org heading |
+| :headline      | auto     | text for generated org heading    |
+| :heading-level | auto     | level for generated org heading   |
 
 The function should return a list of tables, where each table is
 a 'plist' with the following properties:
@@ -2642,8 +2656,8 @@ a 'plist' with the following properties:
 | :column-names | required | list of column names (strings)                       |
 | :rows         | required | list of rows, where row is a list of cells (strings) |
 
-If ':headline' or ':heading-level' is provided as the block parameter, it overrides
-':headline' or ':level' returned from function.
+If ':keyword', ':headline' or ':heading-level' is provided as the block parameter,
+it overrides corresponding property returned from function.
 
 Example function that returns a single 2x2 table:
 
@@ -2665,11 +2679,13 @@ Example function that returns a single 2x2 table:
                        (error "om-dash: missing :func")))
          (args (plist-get params :args))
          (default-keyword (om-dash--choose-keyword nil))
+         (forced-keyword (plist-get params :keyword))
          (forced-headline (plist-get params :headline))
          (forced-level (plist-get params :heading-level)))
     ;; run function and build table
     (dolist (table-plist (apply function args))
-      (let* ((keyword (or (plist-get table-plist :keyword)
+      (let* ((keyword (or forced-keyword
+                          (plist-get table-plist :keyword)
                           default-keyword))
              (headline (or forced-headline
                            (plist-get table-plist :headline)
