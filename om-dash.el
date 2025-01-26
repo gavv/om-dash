@@ -538,7 +538,7 @@ If non-nil, all commands and queries are logged to `*om-dash*' buffer."
   :type 'boolean)
 
 (defgroup om-dash-faces nil
-  "Faces in om-dash mode."
+  "Faces for om-dash mode."
   :group 'om-dash)
 
 (defface om-dash-header-cell

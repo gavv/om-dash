@@ -195,12 +195,12 @@ The function should return table(s) in plist format to be displayed:
     ;; list of tables
     (list
      ;; table (plist)
-     (list :keyword "PLANNING"
-           :headline "example table"
-           :column-names '("foo" "bar")
-           :rows '(("DONE" "title")
-                   ("WIP" "another title")
-                   ("TODO" "yet another")))))
+     (list :columns '("state" "title")
+           :data '(("DONE" "some title")
+                   ("WIP"  "another title")
+                   ("TODO" "yet another"))
+           :keyword "PLANNING"
+           :headline "example table")))
 #+END_EXAMPLE
 
 ** Contributions
@@ -262,13 +262,13 @@ Instructions for straight.el:
 
 The following functions can be used to update dynamic blocks (of any kind) in current document. You can bind them to =org-mode-map= or =om-dash-mode-map=.
 
-#+BEGIN: om-readme-symbol :symbol org-update-all-dblocks
+#+BEGIN: om-readme-definition :type func :symb org-update-all-dblocks
 *** org-update-all-dblocks
 Update all dynamic blocks in the buffer.
 This function can be used in a hook.
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol org-dblock-update
+#+BEGIN: om-readme-definition :type func :symb org-dblock-update
 *** org-dblock-update
 User command for updating dynamic blocks.
 Update the dynamic block at point.  With prefix ARG, update all dynamic
@@ -277,7 +277,7 @@ blocks in the buffer.
 (fn &optional ARG)
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-update-tree
+#+BEGIN: om-readme-definition :type func :symb om-dash-update-tree
 *** om-dash-update-tree
 Update all dynamic blocks in current tree, starting from top-level entry.
 
@@ -296,7 +296,7 @@ E.g., for the following document:
 the function updates all blocks inside 1., 1.1, 1.1.1, 1.1.2, 1.2.
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-update-subtree
+#+BEGIN: om-readme-definition :type func :symb om-dash-update-subtree
 *** om-dash-update-subtree
 Update all dynamic blocks in current subtree, starting from current entry.
 
@@ -319,7 +319,7 @@ the function updates all blocks inside 1.1, 1.1.1, 1.1.2.
 
 This section lists dynamic blocks implemented by =om-dash=. Each block named =om-dash-xxx= corresponds to a function named =org-dblock-write:om-dash-xxx=.
 
-#+BEGIN: om-readme-symbol :symbol org-dblock-write:om-dash-github
+#+BEGIN: om-readme-definition :type dblock :symb om-dash-github
 *** om-dash-github
 Builds org heading with a table of github issues or pull requests.
 
@@ -359,7 +359,7 @@ Parameters:
 | :sort          | "createdAt"              | sort results by given field            |
 | :fields        | =om-dash-github-fields=  | explicitly specify list of fields      |
 | :limit         | =om-dash-github-limit=   | limit number of results                |
-| :table-columns | =om-dash-github-columns= | list of columns to display             |
+| :columns       | =om-dash-github-columns= | list of columns to display             |
 | :keyword       | auto                     | keyword for generated org heading      |
 | :headline      | auto                     | text for generated org heading         |
 | :heading-level | auto                     | level for generated org heading        |
@@ -544,7 +544,7 @@ The latter allows to exclude fields that makes queries slower, when they're
 not used. To change this, you can specify =:fields= parameter explicitly.
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol org-dblock-write:om-dash-orgfile
+#+BEGIN: om-readme-definition :type dblock :symb om-dash-orgfile
 *** om-dash-orgfile
 Builds org headings with tables based on another org file.
 
@@ -571,7 +571,7 @@ Parameters:
 | :file          | required                      | path to .org file                      |
 | :query         | (:todo-depth 2 :done-depth 1) | query for org entries                  |
 | :digest        | nil                           | generate single table with all entries |
-| :table-columns | =om-dash-orgfile-columns=     | list of columns to display             |
+| :columns       | =om-dash-orgfile-columns=     | list of columns to display             |
 | :keyword       | auto                          | keyword for generated org headings     |
 | :headline      | auto                          | text for generated org headings        |
 | :heading-level | auto                          | level for generated org headings       |
@@ -655,7 +655,7 @@ is just a string. Otherwise, there are many tables, and =:headline=
 is a format string where '%s' can be used for entry title.
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol org-dblock-write:om-dash-imap
+#+BEGIN: om-readme-definition :type dblock :symb om-dash-imap
 *** om-dash-imap
 Builds org heading with a table of IMAP folder(s) and their unread mail counters.
 
@@ -666,37 +666,51 @@ Usage example:
   ,#+END:
 #+END_EXAMPLE
 
-| parameter      | default                                | description                       |
-|----------------+----------------------------------------+-----------------------------------|
-| :host          | =om-dash-imap-host=                    | IMAP server hostmame              |
-| :port          | =om-dash-imap-port= or default         | IMAP server port                  |
-| :machine       | =om-dash-imap-machine= or host         | ~/.authinfo machine               |
-| :user          | =om-dash-imap-user= or ~/.authinfo     | IMAP username                     |
-| :password      | =om-dash-imap-password= or ~/.authinfo | IMAP password                     |
-| :stream        | =om-dash-imap-stream= or auto          | STREAM for imap-open              |
-| :auth          | =om-dash-imap-auth= or auto            | AUTH for imap-open                |
-| :table-columns | =om-dash-imap-columns=                 | list of columns to display        |
-| :keyword       | auto                                   | keyword for generated org heading |
-| :headline      | auto                                   | text for generated org heading    |
-| :heading-level | auto                                   | level for generated org heading   |
+Custom config:
+#+BEGIN_EXAMPLE
+  ,#+BEGIN: om-dash-imap :folder "foo/bar" :server (:host "example.com" :user "john" :password "secret")
+  ...
+  ,#+END:
+#+END_EXAMPLE
+
+| parameter      | default                       | description                       |
+|----------------+-------------------------------+-----------------------------------|
+| :server        | =om-dash-imap-default-server= | server connection config          |
+| :columns       | =om-dash-imap-columns=        | list of columns to display        |
+| :keyword       | auto                          | keyword for generated org heading |
+| :headline      | auto                          | text for generated org heading    |
+| :heading-level | auto                          | level for generated org heading   |
+
+=:server= defines IMAP connection parameters. It must be a =plist= which can have
+the following properties:
+
+| property  | default                            | description                 |
+|-----------+------------------------------------+-----------------------------|
+| :host     | required                           | IMAP server hostmame        |
+| :port     | auto                               | IMAP server port            |
+| :machine  | same as =:host=                    | machine name in ~/.authinfo |
+| :user     | match in ~/.authinfo by =:machine= | IMAP username               |
+| :password | match in ~/.authinfo by =:machine= | IMAP password               |
+| :stream   | auto                               | STREAM arg for =imap-open=  |
+| :auth     | auto                               | AUTH arg for =imap-open=    |
+
+If you omit =:server=, or some of the properties, their values are substituted with
+the corresponding fields from =om-dash-imap-default-server=, when present.
 
 =:host= and =:port= define IMAP server address.
-Host must be always set, and port is optional.
+Host must be always set, either via =:server= or =om-dash-imap-default-server=.
+Port is optional, default value depends on =:auth= method.
 
 =:user= and =:password= define IMAP credentials.
-If not set, =om-dash-imap= will read them from ~/.authinfo.
-If =:machine= is set, it's used to search ~/.authinfo, otherwise host is used.
+If not set, =om-dash-imap= will find them in ~/.authinfo by matching by =:machine=
+property. If =:machine= isn't set, =:host= value is used for matching.
 
 =:stream= and =:auth= may be used to force =imap-open= to use specific
 connection and authentification types. For example, you can use =network=
 and =login= values to force plain-text unencrypted password.
-
-All these parameters have corresponding variables (e.g. =om-dash-imap-host=
-for =:host=) which are used if paremeter is omitted. Value is considered
-unset when both parameter is omitted and variable is nil.
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol org-dblock-write:om-dash-command
+#+BEGIN: om-readme-definition :type dblock :symb om-dash-command
 *** om-dash-command
 Builds org heading with a table from output of a shell command.
 
@@ -726,7 +740,7 @@ Note: using CSV format requires installing =parse-csv= package
 from https://github.com/mrc/el-csv
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol org-dblock-write:om-dash-function
+#+BEGIN: om-readme-definition :type dblock :symb om-dash-function
 *** om-dash-function
 Builds org heading with a table from output of a elisp function.
 
@@ -741,23 +755,24 @@ Usage example:
 |----------------+----------+-----------------------------------|
 | :func          | required | elisp function to call            |
 | :args          | nil      | optional function arguments       |
-| :keyword       | auto     | keyword for generated org heading |
-| :headline      | auto     | text for generated org heading    |
-| :heading-level | auto     | level for generated org heading   |
+| :columns       | nil      | list of columns to display        |
+| :keyword       | nil      | keyword for generated org heading |
+| :headline      | nil      | text for generated org heading    |
+| :heading-level | nil      | level for generated org heading   |
 
 The function should return a list of tables, where each table is
 a =plist= with the following properties:
 
-| property      | default  | description                                          |
-|---------------+----------+------------------------------------------------------|
-| :keyword      | =TODO=   | keyword for generated org heading                    |
-| :headline     | auto     | text for generated org heading                       |
-| :level        | auto     | level for generated org heading                      |
-| :column-names | required | list of column names (strings)                       |
-| :rows         | required | list of rows, where row is a list of cells (strings) |
+| property       | default  | description                                          |
+|----------------+----------+------------------------------------------------------|
+| :columns       | required | list of column names (strings)                       |
+| :data          | required | list of rows, where row is a list of cells (strings) |
+| :keyword       | =TODO=   | keyword for generated org heading                    |
+| :headline      | auto     | text for generated org heading                       |
+| :heading-level | auto     | level for generated org heading                      |
 
-If =:keyword=, =:headline= or =:heading-level= is provided as the block parameter,
-it overrides corresponding property returned from function.
+Every property returned from function, except =:data=, may be overwritten by a block
+parameter with the same name, if it is provided.
 
 Example function that returns a single 2x2 table:
 
@@ -766,11 +781,11 @@ Example function that returns a single 2x2 table:
     ;; list of tables
     (list
      ;; table plist
-     (list :keyword "TODO"
-           :headline "example table"
-           :column-names '("foo" "bar")
-           :rows '(("a" "b")
-                   ("c" "d")))))
+     (list :columns '("foo" "bar")
+           :data '(("a" "b")
+                   ("c" "d"))
+           :keyword "TODO"
+           :headline "example table")))
 #+END_EXAMPLE
 #+END:
 
@@ -778,13 +793,13 @@ Example function that returns a single 2x2 table:
 
 This section lists built-in templates provided by =om-dash=. You can define your own templates via =om-dash-templates= variable.
 
-#+BEGIN: om-readme-symbol :symbol om-dash-github:milestone
+#+BEGIN: om-readme-definition :type func :symb om-dash-github:milestone
 *** om-dash-github:milestone
 This template is OBSOLETE.
 Use =om-dash-github= with =:milestone= query instead.
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-github:project-column
+#+BEGIN: om-readme-definition :type func :symb om-dash-github:project-column
 *** om-dash-github:project-column
 This template is OBSOLETE.
 Use =om-dash-github= with =:project-status= query instead.
@@ -792,7 +807,7 @@ Use =om-dash-github= with =:project-status= query instead.
 
 ** Minor mode
 
-#+BEGIN: om-readme-symbol :symbol om-dash-mode
+#+BEGIN: om-readme-definition :type func :symb om-dash-mode
 *** om-dash-mode
 om-dash minor mode.
 
@@ -834,51 +849,79 @@ it is disabled.
 
 ** Variables
 
-#+BEGIN: om-readme-symbol :symbol om-dash-todo-keywords
+#+BEGIN: om-readme-definition :type var :symb om-dash-todo-keywords
 *** om-dash-todo-keywords
-List of keywords considered as TODO.
+List of keywords considered as "todo".
 
-If block has any of the TODO keywords, block's heading becomes TODO.
-The first element from this list is used for block's heading in this case.
+If block has any of the "todo" keywords, block state is considered "todo".
+The first element from this list is used as block's heading keyword.
 
 If a keyword from this list doesn't have a face in =om-dash-keyword-faces=,
-it uses default TODO keyword face.
+it uses standard face for =TODO= keyword.
 
 When nil, filled automatically from =org-todo-keywords=, =org-done-keywords=,
-and pre-defined github keywords.
+and pre-defined keywords for github, imap, etc.
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (choice
+   (const :tag "Auto" nil)
+   (repeat string))
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
   nil
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-done-keywords
+#+BEGIN: om-readme-definition :type var :symb om-dash-done-keywords
 *** om-dash-done-keywords
-List of keywords considered as DONE.
+List of keywords considered as "done".
 
-If block doesn't have any of the TODO keywords, block's heading becomes DONE.
-The first element from this list is used for block's heading in this case.
+If block has only "done" keywords, block state is considered "done".
+The first element from this list is used as block's heading keyword.
 
 If a keyword from this list doesn't have a face in =om-dash-keyword-faces=,
-it uses default DONE keyword face.
+it uses standard face for =DONE= keyword.
 
 When nil, filled automatically from =org-todo-keywords=, =org-done-keywords=,
-and pre-defined github keywords.
+and pre-defined keywords for github, imap, etc.
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (choice
+   (const :tag "Auto" nil)
+   (repeat string))
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
   nil
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-keyword-faces
+#+BEGIN: om-readme-definition :type var :symb om-dash-keyword-faces
 *** om-dash-keyword-faces
 Assoc list to map keywords to faces.
 
 If some keyword is not mapped to a face explicitly, default face is selected,
 using face for TODO or DONE depending on whether that keyword is in
 =om-dash-todo-keywords= or =om-dash-done-keywords=.
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (alist :key-type
+         (string :tag "Keyword")
+         :value-type
+         (symbol :tag "Face"))
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
@@ -896,22 +939,40 @@ using face for TODO or DONE depending on whether that keyword is in
       ("CLEAN" . om-dash-clean-keyword)
       )
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-tag-map
+#+BEGIN: om-readme-definition :type var :symb om-dash-tag-map
 *** om-dash-tag-map
 Assoc list to remap or unmap tag names.
 
 Defines how tags are displayed in table.
 You can map tag name to a different string or to nil to hide it.
 
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (choice
+   (const :tag "None" nil)
+   (alist :key-type
+          (string :tag "Tag")
+          :value-type
+          (choice
+           (string :tag "Mapped Name")
+           (const :tag "Hide" nil))))
+#+END_EXAMPLE
+
 *Default value:*
 #+BEGIN_EXAMPLE
   nil
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-templates
+#+BEGIN: om-readme-definition :type var :symb om-dash-templates
 *** om-dash-templates
 Assoc list of expandable templates for om-dash dynamic blocks.
 
@@ -949,6 +1010,14 @@ a modified parameter list:
 
 Then modified parameters are interpreted by dynamic block as usual.
 
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (alist :key-type
+         (symbol :tag "Template Name")
+         :value-type
+         (function :tag "Template Function"))
+#+END_EXAMPLE
+
 *Default value:*
 #+BEGIN_EXAMPLE
   '(
@@ -957,57 +1026,97 @@ Then modified parameters are interpreted by dynamic block as usual.
       (project-column . om-dash-github:project-column)
       )
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-table-fixed-width
+#+BEGIN: om-readme-definition :type var :symb om-dash-table-fixed-width
 *** om-dash-table-fixed-width
 If non-nil, align tables to have given fixed width.
 If nil, tables have minimum width that fits their contents.
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (choice
+   (const :tag "Minimum Width" nil)
+   (integer :tag "Fixed Width"))
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
   nil
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.2
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-table-squeeze-empty
+#+BEGIN: om-readme-definition :type var :symb om-dash-table-squeeze-empty
 *** om-dash-table-squeeze-empty
 If non-nil, automatically remove empty columns from tables.
 E.g. if every row has empty tags, :tags column is removed from this table.
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (boolean)
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
   t
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.2
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-table-link-style
+#+BEGIN: om-readme-definition :type var :symb om-dash-table-link-style
 *** om-dash-table-link-style
 How links are generated in om-dash tables.
 
 Allowed values:
- - :none - no links are inserted
- - :text - only cell text becomes a link
- - :cell - whole cell becomes a link
+ - =:none= - no links are inserted
+ - =:text= - only cell text becomes a link
+ - =:cell= - whole cell becomes a link
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (choice
+   (const :tag "No links" :none)
+   (const :tag "Cell Text Is Link" :text)
+   (const :tag "Whole Cell Is Link" :cell))
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
   :cell
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.2
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-table-time-format
+#+BEGIN: om-readme-definition :type var :symb om-dash-table-time-format
 *** om-dash-table-time-format
 Format for =format-time-string= used for times in tables.
 E.g. used for github columns like :created-at, :updated-at, etc.
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (string)
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
   "%a, %d %b %Y"
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.3
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-github-columns
+#+BEGIN: om-readme-definition :type var :symb om-dash-github-columns
 *** om-dash-github-columns
 Column list for =om-dash-github= tables.
 
@@ -1033,6 +1142,11 @@ Supported values:
 | :closed-at              | date              |
 | :merged-at              | date              |
 
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (repeat symbol)
+#+END_EXAMPLE
+
 *Default value:*
 #+BEGIN_EXAMPLE
   '(:state
@@ -1040,9 +1154,12 @@ Supported values:
       :author
       :title-link)
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-orgfile-columns
+#+BEGIN: om-readme-definition :type var :symb om-dash-orgfile-columns
 *** om-dash-orgfile-columns
 Column list for =om-dash-orgfile= tables.
 
@@ -1055,14 +1172,22 @@ Supported values:
 | :title-link | [​[link][text]]  |
 | :tags       | :tag1:tag2:...: |
 
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (repeat symbol)
+#+END_EXAMPLE
+
 *Default value:*
 #+BEGIN_EXAMPLE
   '(:state
       :title-link)
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-imap-columns
+#+BEGIN: om-readme-definition :type var :symb om-dash-imap-columns
 *** om-dash-imap-columns
 Column list for =om-dash-imap= tables.
 
@@ -1076,6 +1201,11 @@ Supported values:
 | :total  |                 30 |
 | :folder |            foo/bar |
 
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (repeat symbol)
+#+END_EXAMPLE
+
 *Default value:*
 #+BEGIN_EXAMPLE
   '(:state
@@ -1084,22 +1214,33 @@ Supported values:
       :total
       :folder)
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.3
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-github-limit
+#+BEGIN: om-readme-definition :type var :symb om-dash-github-limit
 *** om-dash-github-limit
 Default limit for github queries.
 
 E.g. if you query "all open issues" or "closed issues since january",
 only last =om-dash-github-limit= results are returned.
 
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (integer)
+#+END_EXAMPLE
+
 *Default value:*
 #+BEGIN_EXAMPLE
   200
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-github-fields
+#+BEGIN: om-readme-definition :type var :symb om-dash-github-fields
 *** om-dash-github-fields
 List of json fields enabled by default in github queries.
 
@@ -1114,6 +1255,16 @@ that are enabled automatically for a query if jq selector contains them.
 
 In addition, =org-dblock-write:om-dash-github= accept =:fields=
 parameter, which can be used to overwrite fields list per-block.
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (alist :key-type
+         (choice
+          (const :tag "Pull Request" pullreq)
+          (const :tag "Issue" issue))
+         :value-type
+         (repeat :tag "Field" string))
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
@@ -1167,13 +1318,26 @@ parameter, which can be used to overwrite fields list per-block.
         ))
       )
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-github-auto-enabled-fields
+#+BEGIN: om-readme-definition :type var :symb om-dash-github-auto-enabled-fields
 *** om-dash-github-auto-enabled-fields
 List of json fields automatically enabled on demand in github queries.
 
 See =om-dash-github-fields= for more details.
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (alist :key-type
+         (choice
+          (const :tag "Pull Request" pullreq)
+          (const :tag "Issue" issue))
+         :value-type
+         (repeat :tag "Field" string))
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
@@ -1207,199 +1371,269 @@ See =om-dash-github-fields= for more details.
         ))
       )
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-imap-host
-*** om-dash-imap-host
-Default IMAP server hostname.
+#+BEGIN: om-readme-definition :type var :symb om-dash-imap-default-server
+*** om-dash-imap-default-server
+Default IMAP connection settings.
 
-Used by =om-dash-imap= if =:host= parameter is not provided.
-Host must be always set, either via =:host= or =om-dash-imap-host=.
+Fields from this =plist= are used in =om-dash-imap= if corresponding
+parameters are not explicitly specified for the block.
+
+Supported properties:
+
+| parameter | description                 |
+|-----------+-----------------------------|
+| :host     | IMAP server hostmame        |
+| :port     | IMAP server port            |
+| :machine  | machine name in ~/.authinfo |
+| :user     | IMAP username               |
+| :password | IMAP password               |
+| :stream   | STREAM for =imap-open=      |
+| :auth     | AUTH for =imap-open=        |
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (plist :options
+         ((:host
+           (string :tag "Hostname Or IP"))
+          (:port
+           (choice
+            (integer :tag "Port Number")
+            (const :tag "Auto" nil)))
+          (:machine
+           (choice
+            (string :tag "Machine Name For ~/.authinfo")
+            (const :tag "Auto" nil)))
+          (:user
+           (choice
+            (string :tag "User")
+            (const :tag "Auto" nil)))
+          (:password
+           (choice
+            (string :tag "Password")
+            (const :tag "Auto" nil)))
+          (:stream
+           (choice
+            (const gssapi)
+            (const kerberos4)
+            (const starttls)
+            (const tls)
+            (const ssl)
+            (const network)
+            (const shell)
+            (const :tag "Auto" nil)))
+          (:auth
+           (choice
+            (const gssapi)
+            (const kerberos4)
+            (const digest-md5)
+            (const cram-md5)
+            (const login)
+            (const anonymous)
+            (const :tag "Auto" nil)))))
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
-  nil
+  '( :host nil
+       :port nil
+       :machine nil
+       :user nil
+       :password nil
+       :stream nil
+       :auth nil )
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.4
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-imap-port
-*** om-dash-imap-port
-Default IMAP server port number.
-
-Used by =om-dash-imap= if =:port= parameter is not provided.
-If port is not set, default IMAP port is used.
-
-*Default value:*
-#+BEGIN_EXAMPLE
-  nil
-#+END_EXAMPLE
-#+END:
-
-#+BEGIN: om-readme-symbol :symbol om-dash-imap-machine
-*** om-dash-imap-machine
-Default ~/.authinfo machine for IMAP server.
-
-Used by =om-dash-imap= if =:machine= parameter is not provided.
-If machine is not set, value of host is used.
-
-*Default value:*
-#+BEGIN_EXAMPLE
-  nil
-#+END_EXAMPLE
-#+END:
-
-#+BEGIN: om-readme-symbol :symbol om-dash-imap-user
-*** om-dash-imap-user
-Default username for IMAP server.
-
-Used by =om-dash-imap= if =:user= parameter is not provided.
-If user is not set, it's read from ~/.authinfo.
-See also =om-dash-imap-machine=.
-
-*Default value:*
-#+BEGIN_EXAMPLE
-  nil
-#+END_EXAMPLE
-#+END:
-
-#+BEGIN: om-readme-symbol :symbol om-dash-imap-password
-*** om-dash-imap-password
-Default username for IMAP server.
-
-Used by =om-dash-imap= if =:password= parameter is not provided.
-If password is not set, it's read from ~/.authinfo.
-See also =om-dash-imap-machine=.
-
-*Default value:*
-#+BEGIN_EXAMPLE
-  nil
-#+END_EXAMPLE
-#+END:
-
-#+BEGIN: om-readme-symbol :symbol om-dash-imap-stream
-*** om-dash-imap-stream
-Default STREAM parameter for =imap-open=.
-
-Used by =om-dash-imap= if =:stream= parameter is not provided.
-Must be one of the values from =imap-streams=.
-If nil, detected automatically.
-
-*Default value:*
-#+BEGIN_EXAMPLE
-  nil
-#+END_EXAMPLE
-#+END:
-
-#+BEGIN: om-readme-symbol :symbol om-dash-imap-auth
-*** om-dash-imap-auth
-Default AUTH parameter for =imap-open=.
-
-Used by =om-dash-imap= if =:auth= parameter is not provided.
-Must be one of the values from =imap-authenticators=.
-If nil, detected automatically.
-
-*Default value:*
-#+BEGIN_EXAMPLE
-  nil
-#+END_EXAMPLE
-#+END:
-
-#+BEGIN: om-readme-symbol :symbol om-dash-imap-empty-folders
+#+BEGIN: om-readme-definition :type var :symb om-dash-imap-empty-folders
 *** om-dash-imap-empty-folders
 Whether to display empty IMAP folders.
 If nil, empty folders are excluded from the table.
 
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (boolean)
+#+END_EXAMPLE
+
 *Default value:*
 #+BEGIN_EXAMPLE
   nil
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-verbose
+#+BEGIN: om-readme-definition :type var :symb om-dash-verbose
 *** om-dash-verbose
 Enable verbose logging.
-If non-nill, all commands and queries are logged to =*om-dash*= buffer.
+If non-nil, all commands and queries are logged to =*om-dash*= buffer.
+
+*Variable type:*
+#+BEGIN_EXAMPLE
+  (boolean)
+#+END_EXAMPLE
 
 *Default value:*
 #+BEGIN_EXAMPLE
   nil
 #+END_EXAMPLE
+
+*Introduced in version:*
+   - 0.1
 #+END:
 
 ** Faces
 
-#+BEGIN: om-readme-symbol :symbol om-dash-header-cell
+#+BEGIN: om-readme-definition :type face :symb om-dash-header-cell
 *** om-dash-header-cell
 Face used for entire cell in om-dash table header.
 You can use it so specify header background.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit default)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-header-text
+#+BEGIN: om-readme-definition :type face :symb om-dash-header-text
 *** om-dash-header-text
 Face used for text in om-dash table header.
 You can use it so specify header font.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit org-table)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-cell
+#+BEGIN: om-readme-definition :type face :symb om-dash-cell
 *** om-dash-cell
 Face used for entire non-header cell in om-dash table.
 You can use it so specify cell background.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit default)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-text
+#+BEGIN: om-readme-definition :type face :symb om-dash-text
 *** om-dash-text
 Face used for text in om-dash table non-header cell.
 You can use it so specify cell font.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit default)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-number
+#+BEGIN: om-readme-definition :type face :symb om-dash-number
 *** om-dash-number
 Face used for issue or pull request numbers in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit org-link)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-username
+#+BEGIN: om-readme-definition :type face :symb om-dash-username
 *** om-dash-username
 Face used for github usernames in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit org-document-info)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-todo-keyword
+#+BEGIN: om-readme-definition :type face :symb om-dash-todo-keyword
 *** om-dash-todo-keyword
 Face used for =TODO= keyword in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit org-todo :weight normal)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-done-keyword
+#+BEGIN: om-readme-definition :type face :symb om-dash-done-keyword
 *** om-dash-done-keyword
 Face used for =DONE= keyword in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit org-done :weight normal)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-open-keyword
+#+BEGIN: om-readme-definition :type face :symb om-dash-open-keyword
 *** om-dash-open-keyword
 Face used for =OPEN= keyword in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit om-dash-todo-keyword)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-merged-keyword
+#+BEGIN: om-readme-definition :type face :symb om-dash-merged-keyword
 *** om-dash-merged-keyword
 Face used for =MERGED= keyword in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit om-dash-done-keyword)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-closed-keyword
+#+BEGIN: om-readme-definition :type face :symb om-dash-closed-keyword
 *** om-dash-closed-keyword
 Face used for =CLOSED= keyword in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit org-warning :weight normal)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-new-keyword
+#+BEGIN: om-readme-definition :type face :symb om-dash-new-keyword
 *** om-dash-new-keyword
 Face used for =NEW= keyword in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit org-todo :weight normal)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-unread-keyword
+#+BEGIN: om-readme-definition :type face :symb om-dash-unread-keyword
 *** om-dash-unread-keyword
 Face used for =UNREAD= keyword in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit org-todo :weight normal)))
+#+END_EXAMPLE
 #+END:
 
-#+BEGIN: om-readme-symbol :symbol om-dash-clean-keyword
+#+BEGIN: om-readme-definition :type face :symb om-dash-clean-keyword
 *** om-dash-clean-keyword
 Face used for =CLEAN= keyword in om-dash tables.
+
+*Default value:*
+#+BEGIN_EXAMPLE
+  '((t (:inherit org-done :weight normal)))
+#+END_EXAMPLE
 #+END:
 
 ** Authors
