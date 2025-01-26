@@ -1,8 +1,40 @@
 # Changelog
 
+## [v0.4][v0.4] - 26 Jan 2025
+
+**Compatibility note**: No breaking changes are expected, however some parameter and variable names are changed and using old names triggers an obsoletion warning.
+
+* Improvements:
+
+   * Add customization group and use `defcustom` instead of `defvar`.
+   * Add `:keyword` parameter to all blocks.
+   * Use `user-error` instead of `error` when appropriate.
+
+* Renames:
+
+   * Rework IMAP block parameters. See `om-dash-imap-default-server` variable and `:server` parameter of `om-dash-imap`.
+   * Rename properties parsed by `om-dash-function` to be consistent with block parameters.
+   * Rename `:table-columns` to `:columns`. Now `:columns` is used everywhere consistently.
+
+* Bug-fixes:
+
+   * Fix incorrect behavior of `om-dash-update-tree` and `om-dash-update-subtree` when block contents size changes.
+   * Fix keyword selection for `om-dash-imap` block. Use `TODO` if there are unread emails and `DONE` otherwise.
+   * Fix highlighting of 2-letter keywords (e.g. `QA`) in `om-dash` mode.
+   * Properly report error on IMAP connection failure.
+   * Add missing `(require 'netrc)`.
+
+* Documentation:
+
+   * Port README.org to `om-readme`, improve generated docs.
+   * Consistent quoting style in docstrings.
+   * Minor fixes in documentation.
+
+[v0.4]: https://github.com/gavv/om-dash/releases/tag/v0.4
+
 ## [v0.3][v0.3] - 03 Dec 2024
 
-**Compatibility note**: No breaking changes are expected, in particular all old names should continue working, but emit an obsoletion warning.
+**Compatibility note**: No breaking changes are expected, however some parameter and variable names are changed and using old names triggers an obsoletion warning.
 
 * Implement simple plist-based query language:
 
