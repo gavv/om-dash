@@ -429,51 +429,50 @@ See `om-dash-github-fields' for more details."
                                   (const :tag "Issue" issue))
                 :value-type (repeat :tag "Field" string)))
 
-(defvar om-dash-imap-host nil
-  "Default IMAP server hostname.
+(defcustom om-dash-imap-default-server
+  '( :host nil
+     :port nil
+     :machine nil
+     :user nil
+     :password nil
+     :stream nil
+     :auth nil )
+  "Default IMAP connection settings.
 
-Used by `om-dash-imap' if `:host' parameter is not provided.
-Host must be always set, either via `:host' or `om-dash-imap-host'.")
+Fields from this `plist' are used in `om-dash-imap' if corresponding
+parameters are not explicitly specified for the block.
 
-(defvar om-dash-imap-port nil
-  "Default IMAP server port number.
+Supported properties:
 
-Used by `om-dash-imap' if `:port' parameter is not provided.
-If port is not set, default IMAP port is used.")
+| parameter | description                 |
+|-----------+-----------------------------|
+| :host     | IMAP server hostmame        |
+| :port     | IMAP server port            |
+| :machine  | machine name in ~/.authinfo |
+| :user     | IMAP username               |
+| :password | IMAP password               |
+| :stream   | STREAM for 'imap-open'      |
+| :auth     | AUTH for 'imap-open'        |
+"
+  :package-version '(om-dash . "0.4")
+  :group 'om-dash
+  :type `(plist :options
+                ((:host (string :tag "Hostname Or IP"))
+                 (:port (choice (integer :tag "Port Number")
+                                (const :tag "Auto" nil)))
+                 (:machine (choice (string :tag "Machine Name For ~/.authinfo")
+                                   (const :tag "Auto" nil)))
+                 (:user (choice (string :tag "User")
+                                (const :tag "Auto" nil)))
+                 (:password (choice (string :tag "Password")
+                                    (const :tag "Auto" nil)))
+                 (:stream ,(append '(choice)
+                                   (seq-map (lambda (s) `(const ,s)) imap-streams)
+                                   '((const :tag "Auto" nil))))
+                 (:auth ,(append '(choice)
+                                   (seq-map (lambda (s) `(const ,s)) imap-authenticators)
+                                   '((const :tag "Auto" nil)))))))
 
-(defvar om-dash-imap-machine nil
-  "Default ~/.authinfo machine for IMAP server.
-
-Used by `om-dash-imap' if `:machine' parameter is not provided.
-If machine is not set, value of host is used.")
-
-(defvar om-dash-imap-user nil
-  "Default username for IMAP server.
-
-Used by `om-dash-imap' if `:user' parameter is not provided.
-If user is not set, it's read from ~/.authinfo.
-See also `om-dash-imap-machine'.")
-
-(defvar om-dash-imap-password nil
-  "Default username for IMAP server.
-
-Used by `om-dash-imap' if `:password' parameter is not provided.
-If password is not set, it's read from ~/.authinfo.
-See also `om-dash-imap-machine'.")
-
-(defvar om-dash-imap-stream nil
-  "Default STREAM parameter for `imap-open'.
-
-Used by `om-dash-imap' if `:stream' parameter is not provided.
-Must be one of the values from `imap-streams'.
-If nil, detected automatically.")
-
-(defvar om-dash-imap-auth nil
-  "Default AUTH parameter for `imap-open'.
-
-Used by `om-dash-imap' if `:auth' parameter is not provided.
-Must be one of the values from `imap-authenticators'.
-If nil, detected automatically.")
 
 (defcustom om-dash-imap-empty-folders nil
   "Whether to display empty IMAP folders.
@@ -481,6 +480,55 @@ If nil, empty folders are excluded from the table."
   :package-version '(om-dash . "0.1")
   :group 'om-dash
   :type 'boolean)
+
+(defvar om-dash-imap-host nil
+  "OBSOLETE. Use `:host' property of `om-dash-imap-default-server'.")
+
+(make-obsolete-variable
+ 'om-dash-imap-host
+ 'om-dash-imap-default-server "0.4")
+
+(defvar om-dash-imap-port nil
+  "OBSOLETE. Use `:port' property of `om-dash-imap-default-server'.")
+
+(make-obsolete-variable
+ 'om-dash-imap-port
+ 'om-dash-imap-default-server "0.4")
+
+(defvar om-dash-imap-machine nil
+  "OBSOLETE. Use `:machine' property of `om-dash-imap-default-server'.")
+
+(make-obsolete-variable
+ 'om-dash-imap-machine
+ 'om-dash-imap-default-server "0.4")
+
+(defvar om-dash-imap-user nil
+  "OBSOLETE. Use `:user' property of `om-dash-imap-default-server'.")
+
+(make-obsolete-variable
+ 'om-dash-imap-user
+ 'om-dash-imap-default-server "0.4")
+
+(defvar om-dash-imap-password nil
+  "OBSOLETE. Use `:password' property of `om-dash-imap-default-server'.")
+
+(make-obsolete-variable
+ 'om-dash-imap-password
+ 'om-dash-imap-default-server "0.4")
+
+(defvar om-dash-imap-stream nil
+  "OBSOLETE. Use `:stream' property of `om-dash-imap-default-server'.")
+
+(make-obsolete-variable
+ 'om-dash-imap-stream
+ 'om-dash-imap-default-server "0.4")
+
+(defvar om-dash-imap-auth nil
+  "OBSOLETE. Use `:auth' property of `om-dash-imap-default-server'.")
+
+(make-obsolete-variable
+ 'om-dash-imap-auth
+ 'om-dash-imap-default-server "0.4")
 
 (defcustom om-dash-verbose nil
   "Enable verbose logging.
@@ -2561,54 +2609,116 @@ Usage example:
   ...
   #+END:
 
-| parameter      | default                                | description                       |
-|----------------+----------------------------------------+-----------------------------------|
-| :host          | 'om-dash-imap-host'                    | IMAP server hostmame              |
-| :port          | 'om-dash-imap-port' or default         | IMAP server port                  |
-| :machine       | 'om-dash-imap-machine' or host         | ~/.authinfo machine               |
-| :user          | 'om-dash-imap-user' or ~/.authinfo     | IMAP username                     |
-| :password      | 'om-dash-imap-password' or ~/.authinfo | IMAP password                     |
-| :stream        | 'om-dash-imap-stream' or auto          | STREAM for imap-open              |
-| :auth          | 'om-dash-imap-auth' or auto            | AUTH for imap-open                |
-| :table-columns | 'om-dash-imap-columns'                 | list of columns to display        |
-| :keyword       | auto                                   | keyword for generated org heading |
-| :headline      | auto                                   | text for generated org heading    |
-| :heading-level | auto                                   | level for generated org heading   |
+Custom config:
+  #+BEGIN: om-dash-imap :folder “foo/bar“ :server (:host “example.com“ :user “john“ :password “secret“)
+  ...
+  #+END:
+
+| parameter      | default                       | description                       |
+|----------------+-------------------------------+-----------------------------------|
+| :server        | 'om-dash-imap-default-server' | server connection config          |
+| :table-columns | 'om-dash-imap-columns'        | list of columns to display        |
+| :keyword       | auto                          | keyword for generated org heading |
+| :headline      | auto                          | text for generated org heading    |
+| :heading-level | auto                          | level for generated org heading   |
+
+`:server' defines IMAP connection parameters. It must be a `plist' which can have
+the following properties:
+
+| property  | default                            | description                 |
+|-----------+------------------------------------+-----------------------------|
+| :host     | required                           | IMAP server hostmame        |
+| :port     | auto                               | IMAP server port            |
+| :machine  | same as ':host'                    | machine name in ~/.authinfo |
+| :user     | match in ~/.authinfo by ':machine' | IMAP username               |
+| :password | match in ~/.authinfo by ':machine' | IMAP password               |
+| :stream   | auto                               | STREAM arg for 'imap-open'  |
+| :auth     | auto                               | AUTH arg for 'imap-open'    |
+
+If you omit `:server', or some of the properties, their values are substituted with
+the corresponding fields from `om-dash-imap-default-server', when present.
 
 `:host' and `:port' define IMAP server address.
-Host must be always set, and port is optional.
+Host must be always set, either via `:server' or `om-dash-imap-default-server'.
+Port is optional, default value depends on `:auth' method.
 
 `:user' and `:password' define IMAP credentials.
-If not set, `om-dash-imap' will read them from ~/.authinfo.
-If `:machine' is set, it's used to search ~/.authinfo, otherwise host is used.
+If not set, `om-dash-imap' will find them in ~/.authinfo by matching by `:machine'
+property. If `:machine' isn't set, `:host' value is used for matching.
 
 `:stream' and `:auth' may be used to force `imap-open' to use specific
 connection and authentification types. For example, you can use `network'
 and `login' values to force plain-text unencrypted password.
-
-All these parameters have corresponding variables (e.g. `om-dash-imap-host'
-for `:host') which are used if paremeter is omitted. Value is considered
-unset when both parameter is omitted and variable is nil.
 "
   ;; expand template
   (setq params
         (om-dash--expand-template params))
   ;; parse params
-  (let* ((host (or (plist-get params :host)
-                   om-dash-imap-host
-                   (error "om-dash: missing :host or om-dash-imap-host")))
-         (port (or (plist-get params :port)
-                   om-dash-imap-port))
-         (machine (or (plist-get params :machine)
-                      om-dash-imap-machine))
-         (user (or (plist-get params :user)
-                   om-dash-imap-user))
-         (password (or (plist-get params :password)
-                       om-dash-imap-password))
-         (stream (or (plist-get params :stream)
-                     om-dash-imap-stream))
-         (auth (or (plist-get params :auth)
-                   om-dash-imap-auth))
+  (let* ((server (plist-get params :server))
+         (host (or (plist-get server :host)
+                   (when-let ((host (plist-get params :host)))
+                     (warn ":host is deprecated, use :server instead.")
+                     host)
+                   (plist-get om-dash-imap-default-server
+                              :host)
+                   (when-let ((host om-dash-imap-host))
+                     (warn "om-dash-imap-host is deprecated, use om-dash-imap-default-server.")
+                     host)
+                   (error "om-dash: missing :host in :server or om-dash-imap-default-server.")))
+         (port (or (plist-get server :port)
+                   (when-let ((port (plist-get params :port)))
+                     (warn ":port is deprecated, use :server instead.")
+                     port)
+                   (plist-get om-dash-imap-default-server
+                              :port)
+                   (when-let ((port om-dash-imap-port))
+                     (warn "om-dash-imap-port is deprecated, use om-dash-imap-default-server.")
+                     port)))
+         (machine (or (plist-get server :machine)
+                      (when-let ((machine (plist-get params :machine)))
+                        (warn ":machine is deprecated, use :server instead.")
+                        machine)
+                      (plist-get om-dash-imap-default-server
+                                 :machine)
+                      (when-let ((machine om-dash-imap-machine))
+                        (warn "om-dash-imap-machine is deprecated, use om-dash-imap-default-server.")
+                        machine)))
+         (user (or (plist-get server :user)
+                   (when-let ((user (plist-get params :user)))
+                     (warn ":user is deprecated, use :server instead.")
+                     user)
+                   (plist-get om-dash-imap-default-server
+                              :user)
+                   (when-let ((user om-dash-imap-user))
+                     (warn "om-dash-imap-user is deprecated, use om-dash-imap-default-server.")
+                     user)))
+         (password (or (plist-get server :password)
+                       (when-let ((password (plist-get params :password)))
+                         (warn ":password is deprecated, use :server instead.")
+                         password)
+                       (plist-get om-dash-imap-default-server
+                                  :password)
+                       (when-let ((password om-dash-imap-password))
+                         (warn "om-dash-imap-password is deprecated, use om-dash-imap-default-server.")
+                         password)))
+         (stream (or (plist-get server :stream)
+                     (when-let ((stream (plist-get params :stream)))
+                       (warn ":stream is deprecated, use :server instead.")
+                       stream)
+                     (plist-get om-dash-imap-default-server
+                                :stream)
+                     (when-let ((stream om-dash-imap-stream))
+                       (warn "om-dash-imap-stream is deprecated, use om-dash-imap-default-server.")
+                       stream)))
+         (auth (or (plist-get server :auth)
+                   (when-let ((auth (plist-get params :auth)))
+                     (warn ":auth is deprecated, use :server instead.")
+                     auth)
+                   (plist-get om-dash-imap-default-server
+                              :auth)
+                   (when-let ((auth om-dash-imap-auth))
+                     (warn "om-dash-imap-auth is deprecated, use om-dash-imap-default-server.")
+                     auth)))
          (folder (or (plist-get params :folder)
                      (error "om-dash: missing :folder")))
          (table-columns (or (plist-get params :table-columns)
