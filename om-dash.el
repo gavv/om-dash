@@ -76,31 +76,45 @@
   ;; https://github.com/mrc/el-csv
   (require 'parse-csv))
 
-(defvar om-dash-todo-keywords nil
-  "List of keywords considered as TODO.
+(defgroup om-dash nil
+  "Building blocks for org-based dashboards."
+  :prefix "om-dash-"
+  :group 'org
+  :link '(url-link "https://github.com/gavv/om-dash"))
 
-If block has any of the TODO keywords, block's heading becomes TODO.
-The first element from this list is used for block's heading in this case.
+(defcustom om-dash-todo-keywords nil
+  "List of keywords considered as “todo“.
 
-If a keyword from this list doesn't have a face in `om-dash-keyword-faces',
-it uses default TODO keyword face.
-
-When nil, filled automatically from `org-todo-keywords', `org-done-keywords',
-and pre-defined github keywords.")
-
-(defvar om-dash-done-keywords nil
-  "List of keywords considered as DONE.
-
-If block doesn't have any of the TODO keywords, block's heading becomes DONE.
-The first element from this list is used for block's heading in this case.
+If block has any of the “todo“ keywords, block state is considered “todo“.
+The first element from this list is used as block's heading keyword.
 
 If a keyword from this list doesn't have a face in `om-dash-keyword-faces',
-it uses default DONE keyword face.
+it uses standard face for `TODO' keyword.
 
 When nil, filled automatically from `org-todo-keywords', `org-done-keywords',
-and pre-defined github keywords.")
+and pre-defined keywords for github, imap, etc."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type '(choice (const :tag "Auto" nil)
+                 (repeat string)))
 
-(defvar om-dash-keyword-faces
+(defcustom om-dash-done-keywords nil
+  "List of keywords considered as “done“.
+
+If block has only “done“ keywords, block state is considered “done“.
+The first element from this list is used as block's heading keyword.
+
+If a keyword from this list doesn't have a face in `om-dash-keyword-faces',
+it uses standard face for `DONE' keyword.
+
+When nil, filled automatically from `org-todo-keywords', `org-done-keywords',
+and pre-defined keywords for github, imap, etc."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type '(choice (const :tag "Auto" nil)
+                 (repeat string)))
+
+(defcustom om-dash-keyword-faces
   '(
     ;; org-mode
     ("TODO" . om-dash-todo-keyword)
@@ -118,15 +132,25 @@ and pre-defined github keywords.")
 
 If some keyword is not mapped to a face explicitly, default face is selected,
 using face for TODO or DONE depending on whether that keyword is in
-`om-dash-todo-keywords' or `om-dash-done-keywords'.")
+`om-dash-todo-keywords' or `om-dash-done-keywords'."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type '(alist :key-type (string :tag "Keyword")
+                :value-type (symbol :tag "Face")))
 
-(defvar om-dash-tag-map nil
+(defcustom om-dash-tag-map nil
   "Assoc list to remap or unmap tag names.
 
 Defines how tags are displayed in table.
-You can map tag name to a different string or to nil to hide it.")
+You can map tag name to a different string or to nil to hide it."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type '(choice (const :tag "None" nil)
+                 (alist :key-type (string :tag "Tag")
+                        :value-type (choice (string :tag "Mapped Name")
+                                            (const :tag "Hide" nil)))))
 
-(defvar om-dash-templates
+(defcustom om-dash-templates
   '(
     ;; OBSOLETE templates:
     (milestone . om-dash-github:milestone)
@@ -162,41 +186,60 @@ a modified parameter list:
    :closed ““
    :headline “issues (owner/repo \\“1.2.3\\“)“)
 
-Then modified parameters are interpreted by dynamic block as usual.")
+Then modified parameters are interpreted by dynamic block as usual."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type '(alist :key-type (symbol :tag "Template Name")
+                :value-type (function :tag "Template Function")))
 
-(defvar om-dash-table-fixed-width nil
+(defcustom om-dash-table-fixed-width nil
   "If non-nil, align tables to have given fixed width.
-If nil, tables have minimum width that fits their contents.")
+If nil, tables have minimum width that fits their contents."
+  :package-version '(om-dash . "0.2")
+  :group 'om-dash
+  :type '(choice (const :tag "Minimum Width" nil)
+                 (integer :tag "Fixed Width")))
 
 (define-obsolete-variable-alias
   'om-dash-table-width
   'om-dash-table-fixed-width "0.2")
 
-(defvar om-dash-table-squeeze-empty t
+(defcustom om-dash-table-squeeze-empty t
   "If non-nil, automatically remove empty columns from tables.
-E.g. if every row has empty tags, :tags column is removed from this table.")
+E.g. if every row has empty tags, :tags column is removed from this table."
+  :package-version '(om-dash . "0.2")
+  :group 'om-dash
+  :type 'boolean)
 
 (define-obsolete-variable-alias
   'om-dash-squeeze-empty-columns
   'om-dash-table-squeeze-empty "0.2")
 
-(defvar om-dash-table-link-style :cell
+(defcustom om-dash-table-link-style :cell
   "How links are generated in om-dash tables.
 
 Allowed values:
- - :none - no links are inserted
- - :text - only cell text becomes a link
- - :cell - whole cell becomes a link")
+ - `:none' - no links are inserted
+ - `:text' - only cell text becomes a link
+ - `:cell' - whole cell becomes a link"
+  :package-version '(om-dash . "0.2")
+  :group 'om-dash
+  :type '(choice (const :tag "No links" :none)
+                 (const :tag "Cell Text Is Link" :text)
+                 (const :tag "Whole Cell Is Link" :cell)))
 
 (define-obsolete-variable-alias
   'om-dash-link-style
   'om-dash-table-link-style "0.2")
 
-(defvar om-dash-table-time-format "%a, %d %b %Y"
+(defcustom om-dash-table-time-format "%a, %d %b %Y"
   "Format for `format-time-string' used for times in tables.
-E.g. used for github columns like :created-at, :updated-at, etc.")
+E.g. used for github columns like :created-at, :updated-at, etc."
+  :package-version '(om-dash . "0.3")
+  :group 'om-dash
+  :type 'string)
 
-(defvar om-dash-github-columns
+(defcustom om-dash-github-columns
   '(:state
     :number
     :author
@@ -224,9 +267,12 @@ Supported values:
 | :updated-at             | date              |
 | :closed-at              | date              |
 | :merged-at              | date              |
-")
+"
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type '(repeat symbol))
 
-(defvar om-dash-orgfile-columns
+(defcustom om-dash-orgfile-columns
   '(:state
     :title-link)
   "Column list for `om-dash-orgfile' tables.
@@ -239,9 +285,12 @@ Supported values:
 | :title      | text            |
 | :title-link | [[link][text]]  |
 | :tags       | :tag1:tag2:...: |
-")
+"
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type '(repeat symbol))
 
-(defvar om-dash-imap-columns
+(defcustom om-dash-imap-columns
   '(:state
     :new
     :unread
@@ -258,15 +307,21 @@ Supported values:
 | :unread     | 20                 |
 | :total      | 30                 |
 | :folder     | foo/bar            |
-")
+"
+  :package-version '(om-dash . "0.3")
+  :group 'om-dash
+  :type '(repeat symbol))
 
-(defvar om-dash-github-limit 200
+(defcustom om-dash-github-limit 200
   "Default limit for github queries.
 
 E.g. if you query “all open issues“ or “closed issues since january“,
-only last `om-dash-github-limit' results are returned.")
+only last `om-dash-github-limit' results are returned."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type 'integer)
 
-(defvar om-dash-github-fields
+(defcustom om-dash-github-fields
   '(
     (pullreq
      .
@@ -328,9 +383,14 @@ There is also `om-dash-github-auto-enabled-fields', which defines fields
 that are enabled automatically for a query if jq selector contains them.
 
 In addition, `org-dblock-write:om-dash-github' accept `:fields'
-parameter, which can be used to overwrite fields list per-block.")
+parameter, which can be used to overwrite fields list per-block."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type '(alist :key-type (choice (const :tag "Pull Request" pullreq)
+                                  (const :tag "Issue" issue))
+                :value-type (repeat :tag "Field" string)))
 
-(defvar om-dash-github-auto-enabled-fields
+(defcustom om-dash-github-auto-enabled-fields
   '(
     (pullreq
      .
@@ -362,7 +422,12 @@ parameter, which can be used to overwrite fields list per-block.")
     )
   "List of json fields automatically enabled on demand in github queries.
 
-See `om-dash-github-fields' for more details.")
+See `om-dash-github-fields' for more details."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type '(alist :key-type (choice (const :tag "Pull Request" pullreq)
+                                  (const :tag "Issue" issue))
+                :value-type (repeat :tag "Field" string)))
 
 (defvar om-dash-imap-host nil
   "Default IMAP server hostname.
@@ -410,16 +475,23 @@ Used by `om-dash-imap' if `:auth' parameter is not provided.
 Must be one of the values from `imap-authenticators'.
 If nil, detected automatically.")
 
-(defvar om-dash-imap-empty-folders nil
+(defcustom om-dash-imap-empty-folders nil
   "Whether to display empty IMAP folders.
-If nil, empty folders are excluded from the table.")
+If nil, empty folders are excluded from the table."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type 'boolean)
 
-(defvar om-dash-verbose nil
+(defcustom om-dash-verbose nil
   "Enable verbose logging.
-If non-nill, all commands and queries are logged to `*om-dash*' buffer.")
+If non-nil, all commands and queries are logged to `*om-dash*' buffer."
+  :package-version '(om-dash . "0.1")
+  :group 'om-dash
+  :type 'boolean)
 
 (defgroup om-dash-faces nil
-  "Faces in om-dash mode.")
+  "Faces in om-dash mode."
+  :group 'om-dash)
 
 (defface om-dash-header-cell
   '((t (:inherit default)))
@@ -632,7 +704,9 @@ Join resulting list into one string using a separator and return result."
                     (seq-map (lambda (tag)
                                (let ((mapping (assoc tag om-dash-tag-map)))
                                  (if mapping
-                                     (cadr mapping)
+                                     (if (listp (cdr mapping))
+                                         (cadr mapping)
+                                       (cdr mapping))
                                    tag)))
                              tags)))
   ;; fix tags names
@@ -2782,7 +2856,7 @@ the function updates all blocks inside 1.1, 1.1.1, 1.1.2."
           (setq num-blocks (1+ num-blocks))))
       (message "Updated %s dynamic block(s)." num-blocks))))
 
-(defvar om-dash--keyword-regexp ""
+(defvar-local om-dash--keyword-regexp ""
   "Matches TODO and DONE keywrods.")
 
 (defconst om-dash--number-regexp
