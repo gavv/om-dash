@@ -1797,6 +1797,7 @@ Join resulting list into one string using a separator and return result."
       (`any "issues and pull requests")
       (_ (user-error "om-dash: bad type %S" type)))))
 
+;;;###autoload
 (defun org-dblock-write:om-dash-github (params)
   "Builds org heading with a table of github issues or pull requests.
 
@@ -2390,6 +2391,7 @@ Use `om-dash-github' with `:project-status' query instead.
            "")))
     (s-concat padding title)))
 
+;;;###autoload
 (defun org-dblock-write:om-dash-orgfile (params)
   "Builds org headings with tables based on another org file.
 
@@ -2652,6 +2654,7 @@ is a format string where `%s' can be used for entry title.
            name)
      value)))
 
+;;;###autoload
 (defun org-dblock-write:om-dash-imap (params)
   "Builds org heading with a table of IMAP folder(s) and their unread mail counters.
 
@@ -2769,6 +2772,7 @@ and `login' values to force plain-text unencrypted password.
         (om-dash--insert-table column-names (nreverse table) heading-level))
       (om-dash--remove-empty-line))))
 
+;;;###autoload
 (defun org-dblock-write:om-dash-command (params)
   "Builds org heading with a table from output of a shell command.
 
@@ -2824,6 +2828,7 @@ from https://github.com/mrc/el-csv
         (om-dash--insert-table columns table heading-level))
       (om-dash--remove-empty-line))))
 
+;;;###autoload
 (defun org-dblock-write:om-dash-function (params)
   "Builds org heading with a table from output of a elisp function.
 
@@ -2910,6 +2915,7 @@ Example function that returns a single 2x2 table:
           (om-dash--insert-table column-names (nreverse table) heading-level))
         (om-dash--remove-empty-line)))))
 
+;;;###autoload
 (defun om-dash-update-tree ()
   "Update all dynamic blocks in current tree, starting from top-level entry.
 
@@ -2929,6 +2935,7 @@ the function updates all blocks inside 1., 1.1, 1.1.1, 1.1.2, 1.2."
     (while (org-up-heading-safe))
     (om-dash-update-subtree)))
 
+;;;###autoload
 (defun om-dash-update-subtree ()
   "Update all dynamic blocks in current subtree, starting from current entry.
 
@@ -3112,6 +3119,7 @@ Assumes that om-dash--table-field-p returned true."
                  ((om-dash--cellp om-dash--text-regexp)
                   (om-dash--fontify text-beg text-end 'om-dash-text))))))))))))
 
+;;;###autoload
 (define-minor-mode om-dash-mode
   "om-dash minor mode.
 
