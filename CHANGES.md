@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.5][v0.5] - 18 Feb 2025
+
+* Add `###autoload` comments
+* Properly toggle (enable/disable) om-dash-mode
+* Update docs
+
+[v0.5]: https://github.com/gavv/om-dash/releases/tag/v0.5
+
 ## [v0.4][v0.4] - 26 Jan 2025
 
 **Compatibility note**: No breaking changes are expected, however some parameter and variable names are changed and using old names triggers an obsoletion warning.
