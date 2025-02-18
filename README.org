@@ -1,7 +1,7 @@
 * om-dash
 
 #+BEGIN: om-readme-toc
-- [[#what-is-this?][What is this?]]
+- [[#what-is-this][What is this?]]
 - [[#example-workflow][Example workflow]]
 - [[#example-blocks][Example blocks]]
 - [[#contributions][Contributions]]
@@ -18,6 +18,9 @@
 #+END:
 
 ** What is this?
+   :PROPERTIES:
+   :CUSTOM_ID: what-is-this
+   :END:
 
 =om-dash= implements [[https://orgmode.org/manual/Dynamic-Blocks.html][dynamic blocks]] for org-mode that you can use to *compose a custom project dashboard*.
 
@@ -38,6 +41,9 @@ The package also provides a minor mode (=om-dash-mode=) that applies highlightin
 In addition, there is support for templates, which allow to create reusable parameterized configurations of the above blocks (e.g. for specific github query or shell command).
 
 ** Example workflow
+   :PROPERTIES:
+   :CUSTOM_ID: example-workflow
+   :END:
 
 Here I describe my own workflow. Yours can be different of course, but I think this should give the basic idea about this package.
 
@@ -61,6 +67,9 @@ Screenshot of a project from "dashboard.org" described above:
 #+END_HTML
 
 ** Example blocks
+   :PROPERTIES:
+   :CUSTOM_ID: example-blocks
+   :END:
 
 *** Github pull requests
 
@@ -204,16 +213,25 @@ The function should return table(s) in plist format to be displayed:
 #+END_EXAMPLE
 
 ** Contributions
+   :PROPERTIES:
+   :CUSTOM_ID: contributions
+   :END:
 
 So far I've implemented only things that I needed for my own workflow, plus some reasonable customization. I have quite limited time for this project, so if you would like to extend it for your workflow, pull requests are very welcome!
 
 Also, as I've never created elisp packages before, I probably missed some conventions or best practices. Again, patches are welcome.
 
 ** Releases
+   :PROPERTIES:
+   :CUSTOM_ID: releases
+   :END:
 
 Changelog file can be found here: [[./CHANGES.md][changelog]].
 
 ** Installation
+   :PROPERTIES:
+   :CUSTOM_ID: installation
+   :END:
 
 Required external tools:
 
@@ -259,6 +277,9 @@ Instructions for straight.el:
 #+END_EXAMPLE
 
 ** Updater functions
+   :PROPERTIES:
+   :CUSTOM_ID: updater-functions
+   :END:
 
 The following functions can be used to update dynamic blocks (of any kind) in current document. You can bind them to =org-mode-map= or =om-dash-mode-map=.
 
@@ -316,6 +337,9 @@ the function updates all blocks inside 1.1, 1.1.1, 1.1.2.
 #+END:
 
 ** Dynamic blocks
+   :PROPERTIES:
+   :CUSTOM_ID: dynamic-blocks
+   :END:
 
 This section lists dynamic blocks implemented by =om-dash=. Each block named =om-dash-xxx= corresponds to a function named =org-dblock-write:om-dash-xxx=.
 
@@ -790,6 +814,9 @@ Example function that returns a single 2x2 table:
 #+END:
 
 ** Templates
+   :PROPERTIES:
+   :CUSTOM_ID: templates
+   :END:
 
 This section lists built-in templates provided by =om-dash=. You can define your own templates via =om-dash-templates= variable.
 
@@ -806,6 +833,9 @@ Use =om-dash-github= with =:project-status= query instead.
 #+END:
 
 ** Minor mode
+   :PROPERTIES:
+   :CUSTOM_ID: minor-mode
+   :END:
 
 #+BEGIN: om-readme-definition :type func :symb om-dash-mode
 *** om-dash-mode
@@ -848,6 +878,9 @@ it is disabled.
 #+END:
 
 ** Variables
+   :PROPERTIES:
+   :CUSTOM_ID: variables
+   :END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-todo-keywords
 *** om-dash-todo-keywords
@@ -1491,6 +1524,9 @@ If non-nil, all commands and queries are logged to =*om-dash*= buffer.
 #+END:
 
 ** Faces
+   :PROPERTIES:
+   :CUSTOM_ID: faces
+   :END:
 
 #+BEGIN: om-readme-definition :type face :symb om-dash-header-cell
 *** om-dash-header-cell
@@ -1637,6 +1673,9 @@ Face used for =CLEAN= keyword in om-dash tables.
 #+END:
 
 ** Authors
+   :PROPERTIES:
+   :CUSTOM_ID: authors
+   :END:
 
 Authors ordered by first contribution:
 
@@ -1646,5 +1685,8 @@ Authors ordered by first contribution:
 #+END:
 
 ** License
+   :PROPERTIES:
+   :CUSTOM_ID: license
+   :END:
 
 [[LICENSE][GPLv3+]]
