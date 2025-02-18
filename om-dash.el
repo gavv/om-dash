@@ -3142,11 +3142,24 @@ local variables, e.g. add this to the end of the file:
   # eval: (om-dash-mode 1)
   # End:"
   :lighter " OM-Dash"
-  ;; rebuild regexps from user configuration
-  (om-dash--rebuild-regexps)
-  ;; register font-lock hook
-  (font-lock-add-keywords
-   nil '((om-dash--font-lock-hook)) t))
+  (if om-dash-mode
+      (progn
+        ;; rebuild regexps from user configuration
+        (om-dash--rebuild-regexps)
+        ;; register font-lock hook
+        (font-lock-add-keywords nil '((om-dash--font-lock-hook)) t)
+        ;; refontify buffer
+        (save-excursion
+          (widen)
+          (font-lock-flush)))
+    ;; unregister font-lock hook
+    (font-lock-remove-keywords nil '((om-dash--font-lock-hook)))
+    ;; clear local variables
+    (setq-local om-dash--keyword-regexp nil)
+    ;; refontify buffer
+    (save-excursion
+      (widen)
+      (font-lock-flush))))
 
 (provide 'om-dash)
 ;;; om-dash.el ends here
