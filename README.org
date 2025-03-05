@@ -1677,16 +1677,11 @@ Face used for =CLEAN= keyword in om-dash tables.
    :CUSTOM_ID: authors
    :END:
 
-Authors ordered by first contribution:
-
-#+BEGIN: om-readme-authors
-- Victor Gaydov (victor@enise.org)
-- Stephen Eglen (sje30@cam.ac.uk)
-#+END:
+See [[./AUTHORS.org][here]].
 
 ** License
    :PROPERTIES:
    :CUSTOM_ID: license
    :END:
 
-[[LICENSE][GPLv3+]]
+[[./LICENSE][GPLv3+]]
