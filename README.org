@@ -1,5 +1,7 @@
 * om-dash
 
+[[https://github.com/gavv/om-dash/actions/workflows/build.yaml][file:https://github.com/gavv/om-dash/actions/workflows/build.yaml/badge.svg]]
+
 #+BEGIN: om-readme-toc
 - [[#what-is-this][What is this?]]
 - [[#example-workflow][Example workflow]]
@@ -791,7 +793,7 @@ a =plist= with the following properties:
 |----------------+----------+------------------------------------------------------|
 | :columns       | required | list of column names (strings)                       |
 | :data          | required | list of rows, where row is a list of cells (strings) |
-| :keyword       | =TODO=   | keyword for generated org heading                    |
+| :keyword       | "TODO"   | keyword for generated org heading                    |
 | :headline      | auto     | text for generated org heading                       |
 | :heading-level | auto     | level for generated org heading                      |
 
@@ -908,7 +910,7 @@ and pre-defined keywords for github, imap, etc.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-done-keywords
@@ -937,7 +939,7 @@ and pre-defined keywords for github, imap, etc.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-keyword-faces
@@ -974,7 +976,7 @@ using face for TODO or DONE depending on whether that keyword is in
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-tag-map
@@ -1002,7 +1004,7 @@ You can map tag name to a different string or to nil to hide it.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-templates
@@ -1061,7 +1063,7 @@ Then modified parameters are interpreted by dynamic block as usual.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-table-fixed-width
@@ -1082,7 +1084,7 @@ If nil, tables have minimum width that fits their contents.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.2
+  - 0.2
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-table-squeeze-empty
@@ -1101,7 +1103,7 @@ E.g. if every row has empty tags, :tags column is removed from this table.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.2
+  - 0.2
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-table-link-style
@@ -1127,7 +1129,7 @@ Allowed values:
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.2
+  - 0.2
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-table-time-format
@@ -1146,7 +1148,7 @@ E.g. used for github columns like :created-at, :updated-at, etc.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.3
+  - 0.3
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-github-columns
@@ -1189,7 +1191,7 @@ Supported values:
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-orgfile-columns
@@ -1217,7 +1219,7 @@ Supported values:
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-imap-columns
@@ -1249,7 +1251,7 @@ Supported values:
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.3
+  - 0.3
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-github-limit
@@ -1270,7 +1272,7 @@ only last =om-dash-github-limit= results are returned.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-github-fields
@@ -1353,7 +1355,7 @@ parameter, which can be used to overwrite fields list per-block.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-github-auto-enabled-fields
@@ -1406,7 +1408,7 @@ See =om-dash-github-fields= for more details.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-imap-default-server
@@ -1482,7 +1484,7 @@ Supported properties:
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.4
+  - 0.4
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-imap-empty-folders
@@ -1501,7 +1503,7 @@ If nil, empty folders are excluded from the table.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 #+BEGIN: om-readme-definition :type var :symb om-dash-verbose
@@ -1520,7 +1522,7 @@ If non-nil, all commands and queries are logged to =*om-dash*= buffer.
 #+END_EXAMPLE
 
 *Introduced in version:*
-   - 0.1
+  - 0.1
 #+END:
 
 ** Faces
