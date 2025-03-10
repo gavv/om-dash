@@ -2891,7 +2891,8 @@ Example function that returns a single 2x2 table:
          (forced-level (plist-get params :heading-level)))
     ;; run function and build table
     (dolist (table-plist (apply function args))
-      (let* ((column-names (or (om-dash--plist-obsolete table-plist :columns :column-names)
+      (let* ((column-names (or forced-columns
+                               (om-dash--plist-obsolete table-plist :columns :column-names)
                                (user-error "om-dash: missing :columns")))
              (rows (or (om-dash--plist-obsolete table-plist :data :rows)
                        (user-error "om-dash: missing :data")))
