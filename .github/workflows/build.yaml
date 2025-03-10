@@ -1,0 +1,48 @@
+name: build
+
+on:
+  pull_request:
+
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+
+  workflow_dispatch:
+
+  schedule:
+    - cron: '0 0 * * 1'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        tag:
+          - 28.2-ci-eask
+          - 30.1-ci-eask
+          - ci-eask
+
+    name: emacs-${{ matrix.tag }}
+    runs-on: ubuntu-latest
+    container: silex/emacs:${{ matrix.tag }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Git
+      run: |
+        git config --global credential.helper store
+
+    - name: Install dependencies
+      run: |
+        make deps
+
+    - name: Run build
+      run: |
+        make build
+
+    - name: Run linters
+      run: |
+        make lint
