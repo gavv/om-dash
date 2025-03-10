@@ -72,9 +72,8 @@
 (require 's)
 (require 'ts)
 
-(when (featurep 'parse-csv)
-  ;; https://github.com/mrc/el-csv
-  (require 'parse-csv))
+;; https://github.com/mrc/el-csv
+(require 'parse-csv nil 'noerror)
 
 (defgroup om-dash nil
   "Building blocks for org-based dashboards."
@@ -169,7 +168,7 @@ parameters by appending new values and overwriting existing values.
 
 For example, if `org-dblock-write:om-dash-github' block has parameters:
   (:repo “owner/repo“
-   :type 'issue
+   :type `issue
    :template project-column
    :project 123
    :column “In progress“)
@@ -180,7 +179,7 @@ and find `om-dash-github:project-column' function.
 The function is invoked with the original parameter list, and returns
 a modified parameter list:
   (:repo “owner/repo“
-   :type 'issue
+   :type `issue
    :open (“project:owner/repo/123“
           “.projectCards[] | (.column.name == \\“In progress\\“)“)
    :closed ““
@@ -192,6 +191,18 @@ Then modified parameters are interpreted by dynamic block as usual."
   :type '(alist :key-type (symbol :tag "Template Name")
                 :value-type (function :tag "Template Function")))
 
+(define-obsolete-variable-alias
+  'om-dash-table-width
+  'om-dash-table-fixed-width "0.2")
+
+(define-obsolete-variable-alias
+  'om-dash-squeeze-empty-columns
+  'om-dash-table-squeeze-empty "0.2")
+
+(define-obsolete-variable-alias
+  'om-dash-link-style
+  'om-dash-table-link-style "0.2")
+
 (defcustom om-dash-table-fixed-width nil
   "If non-nil, align tables to have given fixed width.
 If nil, tables have minimum width that fits their contents."
@@ -200,20 +211,12 @@ If nil, tables have minimum width that fits their contents."
   :type '(choice (const :tag "Minimum Width" nil)
                  (integer :tag "Fixed Width")))
 
-(define-obsolete-variable-alias
-  'om-dash-table-width
-  'om-dash-table-fixed-width "0.2")
-
 (defcustom om-dash-table-squeeze-empty t
   "If non-nil, automatically remove empty columns from tables.
 E.g. if every row has empty tags, :tags column is removed from this table."
   :package-version '(om-dash . "0.2")
   :group 'om-dash
   :type 'boolean)
-
-(define-obsolete-variable-alias
-  'om-dash-squeeze-empty-columns
-  'om-dash-table-squeeze-empty "0.2")
 
 (defcustom om-dash-table-link-style :cell
   "How links are generated in om-dash tables.
@@ -227,10 +230,6 @@ Allowed values:
   :type '(choice (const :tag "No links" :none)
                  (const :tag "Cell Text Is Link" :text)
                  (const :tag "Whole Cell Is Link" :cell)))
-
-(define-obsolete-variable-alias
-  'om-dash-link-style
-  'om-dash-table-link-style "0.2")
 
 (defcustom om-dash-table-time-format "%a, %d %b %Y"
   "Format for `format-time-string' used for times in tables.
@@ -451,8 +450,8 @@ Supported properties:
 | :machine  | machine name in ~/.authinfo |
 | :user     | IMAP username               |
 | :password | IMAP password               |
-| :stream   | STREAM for 'imap-open'      |
-| :auth     | AUTH for 'imap-open'        |
+| :stream   | STREAM for `imap-open'      |
+| :auth     | AUTH for `imap-open'        |
 "
   :package-version '(om-dash . "0.4")
   :group 'om-dash
@@ -653,7 +652,7 @@ You can use it so specify cell font."
 (defun om-dash--contains-p (list &rest elems)
   "Check if list has any of the elements."
   (seq-some (lambda (e)
-              (seq-contains list e 'string=))
+              (seq-contains-p list e 'string=))
             elems))
 
 (defun om-dash--join (separator &rest strings-or-lists)
@@ -815,7 +814,7 @@ Join resulting list into one string using a separator and return result."
   "Insert table ruler according to columns spec."
   (let ((col-num 0))
     (dolist (col cols)
-      (let ((text (car col))
+      (let ((_text (car col))
             (width (cdr col)))
         (if (eq col-num 0)
             (insert "|")
@@ -986,7 +985,7 @@ Join resulting list into one string using a separator and return result."
       (when (seq-some 's-present-p parsed-row)
         (let ((col-num 0)
               row)
-          (dolist (col columns)
+          (dolist (_col columns)
             (let ((field (if (< col-num (length parsed-row))
                              (elt parsed-row col-num)
                            "")))
@@ -1146,13 +1145,13 @@ Join resulting list into one string using a separator and return result."
   "Determine what additional github fields to we need to request."
   (seq-remove
    'not (list
-         (when (seq-contains table-columns :reviewer)
+         (when (seq-contains-p table-columns :reviewer)
            "reviewRequests")
-         (when (or (seq-contains table-columns :project)
-                   (seq-contains table-columns :project-status))
+         (when (or (seq-contains-p table-columns :project)
+                   (seq-contains-p table-columns :project-status))
            "projectItems")
-         (when (or (seq-contains table-columns :classic-project)
-                   (seq-contains table-columns :classic-project-status))
+         (when (or (seq-contains-p table-columns :classic-project)
+                   (seq-contains-p table-columns :classic-project-status))
            "projectCards"))))
 
 (defun om-dash--github-read-topics (repo type any-filter open-filter closed-filter
@@ -1177,7 +1176,7 @@ Join resulting list into one string using a separator and return result."
                                   repo type 'closed closed-filter fields extra-fields limit)))
                               gh-types))))
          (gh-outputs
-          (seq-map (lambda (cmd) (make-temp-file "om-dash-"))
+          (seq-map (lambda (_cmd) (make-temp-file "om-dash-"))
                    gh-commands))
          (jq-command
           (om-dash--jq-build-command gh-outputs sort-by)))
@@ -1824,14 +1823,14 @@ Parameters:
 | parameter      | default                  | description                            |
 |----------------+--------------------------+----------------------------------------|
 | :repo          | required                 | github repo in form “<owner>/<repo>“   |
-| :type          | required                 | topic type ('issue', 'pullreq', 'any') |
+| :type          | required                 | topic type (`issue', `pullreq', `any') |
 | :any           | see below                | query for topics in any state          |
 | :open          | see below                | query for topics in open state         |
 | :closed        | see below                | query for topics in closed state       |
 | :sort          | “createdAt“              | sort results by given field            |
-| :fields        | 'om-dash-github-fields'  | explicitly specify list of fields      |
-| :limit         | 'om-dash-github-limit'   | limit number of results                |
-| :columns       | 'om-dash-github-columns' | list of columns to display             |
+| :fields        | `om-dash-github-fields'  | explicitly specify list of fields      |
+| :limit         | `om-dash-github-limit'   | limit number of results                |
+| :columns       | `om-dash-github-columns' | list of columns to display             |
 | :keyword       | auto                     | keyword for generated org heading      |
 | :headline      | auto                     | text for generated org heading         |
 | :heading-level | auto                     | level for generated org heading        |
@@ -2391,6 +2390,9 @@ Use `om-dash-github' with `:project-status' query instead.
            "")))
     (s-concat padding title)))
 
+;; Make byte compiler happy.
+(declare-function org-ql--normalize-query "org-ql" t t)
+
 ;;;###autoload
 (defun org-dblock-write:om-dash-orgfile (params)
   "Builds org headings with tables based on another org file.
@@ -2414,7 +2416,7 @@ Parameters:
 | :file          | required                      | path to .org file                      |
 | :query         | (:todo-depth 2 :done-depth 1) | query for org entries                  |
 | :digest        | nil                           | generate single table with all entries |
-| :columns       | 'om-dash-orgfile-columns'     | list of columns to display             |
+| :columns       | `om-dash-orgfile-columns'     | list of columns to display             |
 | :keyword       | auto                          | keyword for generated org headings     |
 | :headline      | auto                          | text for generated org headings        |
 | :heading-level | auto                          | level for generated org headings       |
@@ -2670,8 +2672,8 @@ Custom config:
 
 | parameter      | default                       | description                       |
 |----------------+-------------------------------+-----------------------------------|
-| :server        | 'om-dash-imap-default-server' | server connection config          |
-| :columns       | 'om-dash-imap-columns'        | list of columns to display        |
+| :server        | `om-dash-imap-default-server' | server connection config          |
+| :columns       | `om-dash-imap-columns'        | list of columns to display        |
 | :keyword       | auto                          | keyword for generated org heading |
 | :headline      | auto                          | text for generated org heading    |
 | :heading-level | auto                          | level for generated org heading   |
@@ -2683,11 +2685,11 @@ the following properties:
 |-----------+------------------------------------+-----------------------------|
 | :host     | required                           | IMAP server hostmame        |
 | :port     | auto                               | IMAP server port            |
-| :machine  | same as ':host'                    | machine name in ~/.authinfo |
-| :user     | match in ~/.authinfo by ':machine' | IMAP username               |
-| :password | match in ~/.authinfo by ':machine' | IMAP password               |
-| :stream   | auto                               | STREAM arg for 'imap-open'  |
-| :auth     | auto                               | AUTH arg for 'imap-open'    |
+| :machine  | same as `:host'                    | machine name in ~/.authinfo |
+| :user     | match in ~/.authinfo by `:machine' | IMAP username               |
+| :password | match in ~/.authinfo by `:machine' | IMAP password               |
+| :stream   | auto                               | STREAM arg for `imap-open'  |
+| :auth     | auto                               | AUTH arg for `imap-open'    |
 
 If you omit `:server', or some of the properties, their values are substituted with
 the corresponding fields from `om-dash-imap-default-server', when present.
@@ -2785,7 +2787,7 @@ Usage example:
 |----------------+----------+-----------------------------------------|
 | :command       | required | shell command to run                    |
 | :columns       | required | column names (list of strings)          |
-| :format        | 'json'   | command output format ('json' or 'csv') |
+| :format        | `json'   | command output format (`json' or `csv') |
 | :keyword       | auto     | keyword for generated org heading       |
 | :headline      | auto     | text for generated org heading          |
 | :heading-level | auto     | level for generated org heading         |
@@ -2853,7 +2855,7 @@ a `plist' with the following properties:
 |----------------+----------+------------------------------------------------------|
 | :columns       | required | list of column names (strings)                       |
 | :data          | required | list of rows, where row is a list of cells (strings) |
-| :keyword       | 'TODO'   | keyword for generated org heading                    |
+| :keyword       | “TODO“   | keyword for generated org heading                    |
 | :headline      | auto     | text for generated org heading                       |
 | :heading-level | auto     | level for generated org heading                      |
 
@@ -2866,8 +2868,8 @@ Example function that returns a single 2x2 table:
     ;; list of tables
     (list
      ;; table plist
-     (list :columns '(“foo“ “bar“)
-           :data '((“a“ “b“)
+     (list :columns `(“foo“ “bar“)
+           :data `((“a“ “b“)
                    (“c“ “d“))
            :keyword “TODO“
            :headline “example table“)))
@@ -2954,7 +2956,7 @@ the function updates all blocks inside 1.1, 1.1.1, 1.1.2."
   (save-excursion
     (outline-back-to-heading)
     (let* ((start-level (org-current-level))
-           (start-point (point-marker))
+           (_start-point (point-marker))
            (end-point (save-excursion
                         (outline-next-heading)
                         (while (and (not (eobp))
@@ -3021,7 +3023,7 @@ the function updates all blocks inside 1.1, 1.1.1, 1.1.2."
   (and (org-at-table-p)
        (org-at-table-hline-p)
        (save-excursion
-         (previous-line)
+         (forward-line -1)
          (not (org-at-table-p)))))
 
 (defun om-dash--table-field-p ()
@@ -3039,10 +3041,10 @@ Assumes that om-dash--table-field-p returned true."
           (1+ cached-table-start))
     (and (org-table-check-inside-data-field t t)
          (save-excursion
-           (previous-line)
+           (forward-line -1)
            (and (org-at-table-hline-p)
                 (progn
-                  (previous-line)
+                  (forward-line -1)
                   (not (org-at-table-p))))))))
 
 (defun om-dash--cellp (regex)
