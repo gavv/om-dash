@@ -662,6 +662,12 @@ Join resulting list into one string using a separator and return result."
                                strings-or-lists)))))
     (s-join separator seq)))
 
+(defun om-dash--remove-nth (list n)
+  "Return a copy of SEQUENCE with the element at index N removed."
+  (seq-concatenate 'list
+                   (seq-subseq list 0 n)
+                   (seq-subseq list (1+ n))))
+
 (defun om-dash--in-dblock-p ()
   "Check if point is inside dynamic block."
   (let ((case-fold-search t))
@@ -862,10 +868,10 @@ Join resulting list into one string using a separator and return result."
                               rows)
               ;; this column is empty, remove it
               (setq columns
-                    (seq-remove-at-position columns col-num))
+                    (om-dash--remove-nth columns col-num))
               (setq rows
                     (seq-map (lambda (row)
-                               (seq-remove-at-position row col-num))
+                               (om-dash--remove-nth row col-num))
                              rows))
               (when (>= stretch-col col-num)
                 (setq stretch-col (1- stretch-col))))))))
