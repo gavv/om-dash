@@ -7,7 +7,7 @@
 ;; URL: https://github.com/gavv/om-dash
 ;; Version: 0.6
 ;; Package-Requires: ((emacs "28.2") (org-ql "0.8.10") (s "1.13.0") (ts "0.3"))
-;; Keywords: org outlines
+;; Keywords: org, outlines
 
 ;;; License:
 
