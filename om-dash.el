@@ -461,8 +461,8 @@ Supported properties:
                                    (seq-map (lambda (s) `(const ,s)) imap-streams)
                                    '((const :tag "Auto" nil))))
                  (:auth ,(append '(choice)
-                                   (seq-map (lambda (s) `(const ,s)) imap-authenticators)
-                                   '((const :tag "Auto" nil)))))))
+                                 (seq-map (lambda (s) `(const ,s)) imap-authenticators)
+                                 '((const :tag "Auto" nil)))))))
 
 
 (defcustom om-dash-imap-empty-folders nil
@@ -536,30 +536,30 @@ If non-nil, all commands and queries are logged to `*om-dash*' buffer."
   '((t (:inherit default)))
   "Face used for entire cell in om-dash table header.
 You can use it so specify header background."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-header-text
   '((t (:inherit org-table)))
   "Face used for text in om-dash table header.
 You can use it so specify header font."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-cell
   '((t (:inherit default)))
   "Face used for entire non-header cell in om-dash table.
 You can use it so specify cell background."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-text
   '((t (:inherit default)))
   "Face used for text in om-dash table non-header cell.
 You can use it so specify cell font."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-number
   '((t (:inherit org-link)))
   "Face used for issue or pull request numbers in om-dash tables."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-username
   '((t (:inherit org-document-info)))
@@ -567,33 +567,33 @@ You can use it so specify cell font."
   :group 'om-dash-faces)
 
 (define-obsolete-face-alias
-  'om-dash-author
-  'om-dash-username "0.3")
+ 'om-dash-author
+ 'om-dash-username "0.3")
 
 (defface om-dash-todo-keyword
   '((t (:inherit org-todo :weight normal)))
   "Face used for `TODO' keyword in om-dash tables."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-done-keyword
   '((t (:inherit org-done :weight normal)))
   "Face used for `DONE' keyword in om-dash tables."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-open-keyword
   '((t (:inherit om-dash-todo-keyword)))
   "Face used for `OPEN' keyword in om-dash tables."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-merged-keyword
   '((t (:inherit om-dash-done-keyword)))
   "Face used for `MERGED' keyword in om-dash tables."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-closed-keyword
   '((t (:inherit org-warning :weight normal)))
   "Face used for `CLOSED' keyword in om-dash tables."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-new-keyword
   '((t (:inherit org-todo :weight normal)))
@@ -603,12 +603,12 @@ You can use it so specify cell font."
 (defface om-dash-unread-keyword
   '((t (:inherit org-todo :weight normal)))
   "Face used for `UNREAD' keyword in om-dash tables."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defface om-dash-clean-keyword
   '((t (:inherit org-done :weight normal)))
   "Face used for `CLEAN' keyword in om-dash tables."
-   :group 'om-dash-faces)
+  :group 'om-dash-faces)
 
 (defun om-dash--log (msg)
   "Log line to *om-dash* buffer."
@@ -1432,16 +1432,16 @@ Join resulting list into one string using a separator and return result."
           (when ignore-list
             (om-dash--join
              " and " (seq-map
-                     (lambda (elem)
-                       (pcase elem
-                         ;; exclude topics with non-empty assignee
-                         ("*" "(.assignees == [])")
-                         ;; exclude topics with empty assignee
-                         ("-" "(.assignees != [])")
-                         ;; exclude topics with specified assignee
-                         (_ (format "all(.assignees[]; .login != \"%s\")"
-                                    (om-dash--gh-quote-arg elem)))))
-                     ignore-list)))))
+                      (lambda (elem)
+                        (pcase elem
+                          ;; exclude topics with non-empty assignee
+                          ("*" "(.assignees == [])")
+                          ;; exclude topics with empty assignee
+                          ("-" "(.assignees != [])")
+                          ;; exclude topics with specified assignee
+                          (_ (format "all(.assignees[]; .login != \"%s\")"
+                                     (om-dash--gh-quote-arg elem)))))
+                      ignore-list)))))
     (list gh-query jq-selector)))
 
 (defun om-dash--github-q-reviewer (params)
@@ -1582,11 +1582,11 @@ Join resulting list into one string using a separator and return result."
          (project (plist-get params :project))
          (project-type (or (plist-get params :project-type) 'v2))
          (match-status (if-let ((param (plist-get params :project-status)))
-                             (cond ((listp param) param)
-                                   (t (list param)))))
+                           (cond ((listp param) param)
+                                 (t (list param)))))
          (ignore-status (if-let ((param (plist-get params :no-project-status)))
-                             (cond ((listp param) param)
-                                   (t (list param)))))
+                            (cond ((listp param) param)
+                                  (t (list param)))))
          (gh-query
           ;; :project
           (when project
@@ -1626,8 +1626,8 @@ Join resulting list into one string using a separator and return result."
                         (`classic
                          (format "all(.projectCards[]; .column.name != \"%s\")"
                                  (om-dash--gh-quote-arg status)))
-                         (_
-                          (user-error "Om-dash: bad project type %S" project-type))))
+                        (_
+                         (user-error "Om-dash: bad project type %S" project-type))))
                     ignore-status))))
     (list gh-query jq-selector)))
 
@@ -2356,17 +2356,17 @@ Use `om-dash-github' with `:project-status' query instead."
 
 (defun om-dash--orgfile-run-query (path query digest)
   "Construct and run `org-ql' query for `om-dash-orgfile'."
-    (om-dash--log
-     (format "%s: %S" path query))
-    (let ((entries (org-ql-select path query)))
-      (if digest
-          (seq-map (lambda (entry)
-                     (let ((entry (org-element-copy entry)))
-                       (org-element-put-property
-                        entry :level (1+ (org-element-property :level entry)))
-                       entry))
-                   entries)
-        entries)))
+  (om-dash--log
+   (format "%s: %S" path query))
+  (let ((entries (org-ql-select path query)))
+    (if digest
+        (seq-map (lambda (entry)
+                   (let ((entry (org-element-copy entry)))
+                     (org-element-put-property
+                      entry :level (1+ (org-element-property :level entry)))
+                     entry))
+                 entries)
+      entries)))
 
 (defun om-dash--orgfile-leveled-keyword (keyword level)
   "Format entry for keyword column in `om-dash-orgfile' block."
