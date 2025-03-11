@@ -10,7 +10,7 @@ build:
 	eask compile
 
 lint:
-	eask lint elisp-lint
+	eask lint elisp-lint --strict
 	eask lint keywords --strict
 	eask lint regexps --strict
 

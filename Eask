@@ -28,3 +28,7 @@
 (put 'checkdoc--argument-missing-flag
      'safe-local-variable
      #'booleanp)
+
+;; Disable check.
+(advice-add 'package-lint--check-symbol-separators :around
+            (lambda (&rest _)))

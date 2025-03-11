@@ -391,7 +391,7 @@ Parameters:
 | :heading-level | auto                     | level for generated org heading        |
 
 Parameters =:any=, =:open=, and =:closed= define =QUERY= for topics in corresponding
-states. You should specify either =:any= or =:open= and/or =:close=. Not specifying
+states.  You should specify either =:any= or =:open= and/or =:close=.  Not specifying
 anything is equavalent to :open "*".
 
 =QUERY= can have one of the following forms:
@@ -421,7 +421,7 @@ Or you can use a single query regardless of topic state:
 #+END_EXAMPLE
 
 =SIMPLE-QUERY= format is a convenient way to build queries for some typical
-use cases. The query should be a =plist= with the following properties:
+use cases.  The query should be a =plist= with the following properties:
 
 | property           | description                                              |
 |--------------------+----------------------------------------------------------|
@@ -447,15 +447,15 @@ use cases. The query should be a =plist= with the following properties:
 | :closed-at         | include only topics closed within given date range       |
 | :merged-at         | include only topics merged within given date range       |
 
-All properties are optional (but at least one should be provided). Multiple
+All properties are optional (but at least one should be provided).  Multiple
 properties are ANDed, e.g. (:author "bob" :label "bug") matches topics with
-author "bob" AND label "bug". Most properties support list form, in which case
-its elements are ORed. E.g. (:author ("bob" "alice") :label "bug") matches
+author "bob" AND label "bug".  Most properties support list form, in which case
+its elements are ORed.  E.g. (:author ("bob" "alice") :label "bug") matches
 topics with label "bug" AND author either "bob" OR "alice".
 
 =:milestone=, =:label=, =:author=, =:assignee=, and =:reviewer= properties, as
 well as their =:no-xxx= counterparts, can be either a string (to match one value)
-or a list of strings (to match any value from the list). Two special values are
+or a list of strings (to match any value from the list).  Two special values are
 supported: "*" matches if corresponding property (e.g. assignee) is non-empty,
 and "-" matches if the property unset/empty.
 
@@ -490,20 +490,20 @@ Examples:
   :no-review-status (approved rejected commented)
 #+END_EXAMPLE
 
-GitHub review state model is complicated. These statuses is an attempt to provide
+GitHub review state model is complicated.  These statuses is an attempt to provide
 a simplified view of the review state for most common needs.
 
 Note that not all statuses are mutually exclusive, in particular =required= can
 co-exist with any status except =undecided=, and =commented= can co-exist with
-any other status. You can match multiple statuses by providing a list.
+any other status.  You can match multiple statuses by providing a list.
 
 =:project= defines numeric identifier of the =v2= or =classic= github project (you can
-see identifier in the url). By default, =v2= is assumed, but you can change type
+see identifier in the url).  By default, =v2= is assumed, but you can change type
 using =:project-type= property.
 
-=:project-status= can be a string or a list of strings. For =v2= projects, it matches
+=:project-status= can be a string or a list of strings.  For =v2= projects, it matches
 "status" field of the project item, which corresponds to column name if board view of
-the project. For =classic= projects, it matches "column" property of the project card.
+the project.  For =classic= projects, it matches "column" property of the project card.
 
 Examples:
 #+BEGIN_EXAMPLE
@@ -567,7 +567,7 @@ if =om-dash-verbose= is set.
 By default, github query uses all fields from =om-dash-github-fields=, plus any
 field from =om-dash-github-auto-enabled-fields= if it's present in jq selector.
 The latter allows to exclude fields that makes queries slower, when they're
-not used. To change this, you can specify =:fields= parameter explicitly.
+not used.  To change this, you can specify =:fields= parameter explicitly.
 #+END:
 
 #+BEGIN: om-readme-definition :type dblock :symb om-dash-orgfile
@@ -616,7 +616,7 @@ It should have one of the following forms:
  - string: =ORG-QL= string query, e.g. "todo:SOMEDAY"
 
 =SIMPLE-QUERY= format is a convenient way to build queries for some typical
-use cases. The query should be a =plist= with the following properties:
+use cases.  The query should be a =plist= with the following properties:
 
 | property     | default | description                                          |
 |--------------+---------+------------------------------------------------------|
@@ -649,7 +649,7 @@ For example:
  - if =:todo-depth= is 3, then level-1 headings in "todo" state are shown
    and each has a table with its level-2 and level-3 children
 
-...and so on. Same applies to =:done-depth= parameter.
+...and so on.  Same applies to =:done-depth= parameter.
 
 Whether a keyword is considered as "todo" or "done" is defined by
 variables =om-dash-todo-keywords= and =om-dash-done-keywords=.
@@ -676,8 +676,8 @@ For =ORG-QL= sexp and string queries, see here:
 https://github.com/alphapapa/org-ql?tab=readme-ov-file#queries
 
 =:headline= parameter defines text for org headings which contains
-tables. If =:digest= is t, there is only one table and =:headline=
-is just a string. Otherwise, there are many tables, and =:headline=
+tables.  If =:digest= is t, there is only one table and =:headline=
+is just a string.  Otherwise, there are many tables, and =:headline=
 is a format string where '%s' can be used for entry title.
 #+END:
 
@@ -707,7 +707,7 @@ Custom config:
 | :headline      | auto                          | text for generated org heading    |
 | :heading-level | auto                          | level for generated org heading   |
 
-=:server= defines IMAP connection parameters. It must be a =plist= which can have
+=:server= defines IMAP connection parameters.  It must be a =plist= which can have
 the following properties:
 
 | property  | default                            | description                 |
@@ -729,10 +729,10 @@ Port is optional, default value depends on =:auth= method.
 
 =:user= and =:password= define IMAP credentials.
 If not set, =om-dash-imap= will find them in ~/.authinfo by matching by =:machine=
-property. If =:machine= isn't set, =:host= value is used for matching.
+property.  If =:machine= isn't set, =:host= value is used for matching.
 
 =:stream= and =:auth= may be used to force =imap-open= to use specific
-connection and authentification types. For example, you can use =network=
+connection and authentification types.  For example, you can use =network=
 and =login= values to force plain-text unencrypted password.
 #+END:
 
@@ -759,7 +759,7 @@ Usage example:
 If =:format= is =json=, command output should be a JSON array of
 JSON objects, which have a value for every key from =:columns=.
 
-If =:format= is =csv=, command output should be CSV. First column
+If =:format= is =csv=, command output should be CSV.  First column
 of CSV becomes value of first column from =:columns=, and so on.
 
 Note: using CSV format requires installing =parse-csv= package
@@ -841,14 +841,14 @@ Use =om-dash-github= with =:project-status= query instead.
 
 #+BEGIN: om-readme-definition :type func :symb om-dash-mode
 *** om-dash-mode
-om-dash minor mode.
+Om-dash minor mode.
 
 This minor mode for .org files enables additional highlighting inside
 org tables generated by om-dash dynamic blocks.
 
 Things that are highlighted:
  - table header and cell (text and background)
- - org-mode keywords
+ - org mode keywords
  - issue or pull request state, number, author, etc.
  - tags
 
@@ -972,6 +972,7 @@ using face for TODO or DONE depending on whether that keyword is in
       ("NEW" . om-dash-new-keyword)
       ("UNREAD" . om-dash-unread-keyword)
       ("CLEAN" . om-dash-clean-keyword)
+      ;;
       )
 #+END_EXAMPLE
 
@@ -1017,7 +1018,7 @@ When you pass ":template foo" as an argument to a dynamic block, it finds
 a function in this list by key =foo= and uses it to "expand" the template.
 
 This function is invoked with dynamic block parameters plist and should
-return a new plist. The new plist is used to update the original
+return a new plist.  The new plist is used to update the original
 parameters by appending new values and overwriting existing values.
 
 For example, if =org-dblock-write:om-dash-github= block has parameters:
@@ -1059,6 +1060,7 @@ Then modified parameters are interpreted by dynamic block as usual.
       ;; OBSOLETE templates:
       (milestone . om-dash-github:milestone)
       (project-column . om-dash-github:project-column)
+      ;;
       )
 #+END_EXAMPLE
 
@@ -1303,8 +1305,7 @@ parameter, which can be used to overwrite fields list per-block.
 
 *Default value:*
 #+BEGIN_EXAMPLE
-  '(
-      (pullreq
+  '((pullreq
        .
        ("assignees"
         "author"
@@ -1349,9 +1350,7 @@ parameter, which can be used to overwrite fields list per-block.
         "state"
         "title"
         "updatedAt"
-        "url"
-        ))
-      )
+        "url")))
 #+END_EXAMPLE
 
 *Introduced in version:*
@@ -1376,11 +1375,9 @@ See =om-dash-github-fields= for more details.
 
 *Default value:*
 #+BEGIN_EXAMPLE
-  '(
-      (pullreq
+  '((pullreq
        .
-       (
-        "additions"
+       ("additions"
         "changedFiles"
         "comments"
         "commits"
@@ -1393,18 +1390,14 @@ See =om-dash-github-fields= for more details.
         "reviewDecision"
         "reviewRequests"
         "reviews"
-        "statusCheckRollup"
-        ))
+        "statusCheckRollup"))
       (issue
        .
-       (
-        "body"
+       ("body"
         "comments"
         "projectCards"
         "projectItems"
-        "reactionGroups"
-        ))
-      )
+        "reactionGroups")))
 #+END_EXAMPLE
 
 *Introduced in version:*

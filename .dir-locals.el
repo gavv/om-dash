@@ -1,4 +1,6 @@
 ((emacs-lisp-mode . ((fill-column . 150)
+                     (byte-compile-docstring-max-column . 150)
                      (indent-tabs-mode . nil)
                      (elisp-lint-ignored-validators . ("byte-compile" "indent"))
+                     (checkdoc-verb-check-experimental-flag . nil)
                      (checkdoc--argument-missing-flag . nil))))
