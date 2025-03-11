@@ -3133,7 +3133,7 @@ changes to take effect.
 To activate this mode automatically for specific files, you can use
 local variables, e.g. add this to the end of the file:
 
-  # Local Variables:
+  # Local Variables\x3a
   # eval: (om-dash-mode 1)
   # End:"
   :lighter " OM-Dash"
